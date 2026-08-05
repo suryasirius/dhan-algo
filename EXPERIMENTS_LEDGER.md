@@ -49,6 +49,12 @@ re-tried or forgotten.
 **Root cause identified:** removing the tight 1pt trailing stop (replaced with a static hard stop + model) let profitable trades give back their whole gain before the model decided to exit. This tested "what happens without trailing protection," not really "is the model's judgment good."
 **Verdict:** FAILED, but with a known fixable flaw (keep the trail as a floor, let the model only choose the exit timing within it) — not retried yet.
 
+## Synthetic candle bootstrap test (day-block resampling of real patterns)
+
+**What it was:** 30 independent synthetic 2-month sequences, each built by randomly drawing real trading days (with replacement) from the 122-day pool and stitching them together with real intraday shapes intact, rebased to remove fake overnight gaps. Not a random walk — real candle patterns, reshuffled combinations.
+**Test (real 6mo data pool):** 0/30 trials lost money. Win rate range 58.2%-74.4% (mean 64.9%). SQN range 2.02-5.97 (mean 3.42), never near zero. Net profit range ₹14,165-₹33,657, all positive. Max DD contained (₹1,490-₹5,149).
+**Verdict:** PASSED. The edge doesn't appear to depend on the one specific historical ordering of the original 6-month backtest. Genuinely reassuring, though still built from the same 122 real days -- not equivalent to real out-of-sample data.
+
 ## Position sizing / compounding (not a filter — this changes trade size, not trade selection)
 
 **Fixed 1-lot (original):** 5yr net ₹296,066, maxDD ₹4,853, SQN 12.67.
