@@ -5,6 +5,12 @@ OI_Intelligence_Engine, Strategy_Selector_AI, AI_Trade_Decision_Engine,
 ORB_ML_OPTIMIZER, Previous_Day_Pivot, Live_Paper_Trading) plus a sample of the
 150+ top-level backtest scripts in `C:\dhan algo`.
 
+> **Update:** items 1, 3, 5, 6, 7, 8, 9, 10 from the "Top 10" list below have since
+> been fixed (see "Fix pass — what actually changed" at the end of this file).
+> Items 2 and 4 are only partially addressable — see that section for exactly
+> what was and wasn't done and why. The ratings table and issue list below are
+> left as originally written (the pre-fix baseline) for reference.
+
 ## Overall rating: 5/10
 
 A genuinely ambitious architecture with real live infrastructure now wired up
@@ -49,3 +55,20 @@ security/ops hygiene is weak for something heading toward live capital. Breakdow
 3. **Pick 3–5 of your best-performing backtest scripts and add one real out-of-sample test**: hold out the most recent 1–2 months, tune only on earlier data, then check performance on the held-out period once. That single check would tell you more about real edge than the other 145 scripts combined.
 4. **Add a bare-minimum test suite**: even 10-15 unit tests on `OIBuilder`, `OIClassifier`, `ConfidenceAndRiskEngine`, and `StrategySelectorAI` (pure functions, easy to test) would catch regressions before they hit the live engine.
 5. **Delete or clearly quarantine dead code** (`dhan_integration_layer.py`/`dhan_integration_master.py`, `AI_Trade_Decision_Engine`) so nothing gets accidentally wired into `step9_live_engine.py` later.
+
+---
+
+## Fix pass — what actually changed
+
+1. **Credentials (issue #1) — fixed.** `dhan_config.py`, `nifty_paper_trade_new_strategy.py`, and `Live_Paper_Trading/config.py` now import `get_access_token()`/`get_client_id()` from `token_manager.py` instead of hardcoding the token/client ID. Grepped the whole `dhan algo` tree for the JWT prefix and the client ID literal — no other occurrences found. **You should still rotate the token that was exposed in plaintext before this fix**, since it lived in source for a while.
+2. **Strategy_Selector_AI fabricated output (issue #2) — NOT fixed, only clearly labeled.** This module's "trainer" (`model_trainer.py`) doesn't call `.fit()` on any model anywhere — it only performs a train/test split and returns it. There was no real trained model to wire `selector.py` up to. Building a real version means implementing an actual backtest of Opening Drive/Velez/Mean Reversion to produce genuine labels, which is a real project of its own, not a bug fix — so instead: added unmissable warnings at the top of `feature_matrix.py`, `model_trainer.py`, and `selector.py` stating the output is synthetic/not a real trained model, and confirmed (grep) that `step6_strategy_selector.py` and `step9_live_engine.py` — your live path — do not import this module at all. It's inert.
+3. **Market_Regime_Classifier leakage (issue #3) — fixed.** `classifier.py` now normalizes with `.expanding(min_periods=...)` instead of whole-dataset `.max()/.min()/.mean()/.std()`, so each row's features only use data available up to that row. `ml_models.py` now uses `TimeSeriesSplit` (chronological, no shuffling, proper multi-fold) instead of a single shuffled 80/20 split mislabeled as 5-fold CV, and the class-balance patch no longer pulls rows from outside the training fold. The `Market_Type` label is still partly a function of its own input features by design (documented in-code) — that's a labeling redesign, out of scope for a fix pass.
+4. **No walk-forward validation project-wide (issue #4) — partially addressed.** Retrofitting all 150+ top-level scripts is out of scope. Did fix it concretely in `ORB_ML_OPTIMIZER` (see #5) as the one place it was cheap and clearly specified. The broader "add one held-out test to your best 3-5 strategies" recommendation still stands and needs your judgment on which scripts matter most.
+5. **ORB_ML_OPTIMIZER (issue #5) — fixed.** `run.py` now actually picks the best grid-search combination (ranked by SQN, tie-broken by profit factor) and uses it for the ML/Monte Carlo steps, instead of computing the grid and then ignoring it. `ml_engine.py`'s train/test split is now chronological (sorted by trade date, first N% train / rest test) instead of a shuffled random split.
+6. **Zero tests (issue #6) — fixed.** Added `Research/tests/test_core_modules.py`: 14 unit tests covering `OIBuilder`, `OIClassifier`, `ConfidenceAndRiskEngine`, `StrategySelectorAI`, and `LiveEngine`'s static scoring functions. All 14 pass. Run with `python -m pytest tests/ -v` from inside `Research/`.
+7. **No git / no .gitignore (issue #7) — fixed.** Initialized a git repo at `C:\dhan algo` with a `.gitignore` covering `logs/`, all token/secret files, databases, CSV ledgers, `__pycache__`, and editor lock files, then made an initial commit. Confirmed via `git ls-files` that no token/credential file is tracked.
+8. **Dead code (issue #8) — fixed.** `dhan_integration_layer.py` was confirmed unused anywhere (grep, zero imports) and had a syntax error from an earlier interrupted edit, so it was deleted outright. `dhan_integration_master.py` IS referenced (in `step7_paper_trading.py`'s `__main__` demo block, not the live path) so it was left in place. `AI_Trade_Decision_Engine/engine.py` and `run_all.py` got loud module-level warnings that their output is fully synthetic/random and not wired into live trading.
+9. **Hardcoded absolute paths (issue #9) — fixed for the core config files** (`token_manager.py`, `step1_config_and_connector.py`; the ORB_ML_OPTIMIZER/Previous_Day_Pivot/Live_Paper_Trading configs were addressed in the same pass). Each now derives its root from the file's own location (with an env var override), instead of a hardcoded `C:\dhan algo\...` string, while resolving to the exact same paths so nothing broke.
+10. **Duplicate `logging.basicConfig()` (issue #10) — fixed.** Every `step*.py` and `AI_Trade_Decision_Engine/engine.py` now guards the call with `if not logging.getLogger().handlers:`, so only the first import in a process configures logging, deterministically.
+
+**Verification done:** full `py_compile` sweep across every `.py` file in `Research/` (clean), `step9_live_engine.py` still imports and instantiates `LiveEngine` without error, and the new test suite (14/14) passes. Nothing in the live path (`step9_live_engine.py` → `step1`/`step2`/`step3`/`step4`/`step6`/`step7`) was touched in a way that changes its behavior — the fixes either land in files it doesn't import (Strategy_Selector_AI, Market_Regime_Classifier, AI_Trade_Decision_Engine, ORB_ML_OPTIMIZER) or are internal refactors that preserve the same resolved paths and log output.
