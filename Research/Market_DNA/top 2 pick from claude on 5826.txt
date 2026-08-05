@@ -1,0 +1,26 @@
+top 2 pick from claude on 5/8/26 paper trade 
+ombined strategies (in best_two_of_claude_5_8_26.py):
+
+Strategy 1 — open_momentum: enters on a strong opening move within the first 30 min, stop-loss 20 points, trailing stop 1 point. Best performer: 81% win rate.
+Strategy 2 — six_concepts (RBI_GBI relaxed): a Velez-style pattern signal, stop-loss 8 points, trailing stop 4 points. Weaker but still profitable: 53% win rate. (This one has the "too good to be fully trusted yet" caution I mentioned earlier.)
+Both share one ₹25,000 pot. If they both fire on the same day at overlapping times, open_momentum wins and six_concepts is skipped that day.
+
+What step10_live_paper_best2.py is:
+
+A live paper-trading engine — trades with fake money in real time, using live Nifty prices, so you can watch how the combo performs before risking real capital.
+Runs only these 2 strategies. No ML/AI filter deciding whether to take a trade — every valid signal from either strategy is taken (unless blocked by the priority rule).
+Separate from your main step9_live_engine.py — different database, different log file — so it won't touch or interfere with what's already running.
+Polls the market every 30 seconds during trading hours and logs every simulated trade so you can review performance later.
+
+
+
+paper trade command
+
+cd "C:\dhan algo\Research"
+python step10_live_paper_best2.py
+
+dash board for python step10_live_paper_best2.py
+
+
+cd "C:\dhan algo\Research"
+python -m streamlit run step11_dashboard_best2.py
