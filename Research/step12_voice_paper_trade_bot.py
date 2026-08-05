@@ -71,6 +71,32 @@ try:
 except ImportError:
     HAS_SR = False
 
+# Two possible microphone backends:
+#   - pyaudio (speech_recognition's default) -- often fails to install on
+#     Windows with a brand-new Python version, since there's no precompiled
+#     wheel yet and building from source needs the PortAudio C headers.
+#   - sounddevice -- ships its own bundled audio engine, no compiling
+#     required, so this is the recommended/default path on Windows.
+try:
+    import pyaudio  # noqa: F401
+    HAS_PYAUDIO = True
+except ImportError:
+    HAS_PYAUDIO = False
+
+try:
+    import sounddevice as sd
+    import numpy as np
+    HAS_SOUNDDEVICE = True
+except ImportError:
+    HAS_SOUNDDEVICE = False
+
+HAS_MIC_BACKEND = HAS_SR and (HAS_PYAUDIO or HAS_SOUNDDEVICE)
+
+SD_SAMPLE_RATE = 16000
+SD_SILENCE_RMS_THRESHOLD = 500.0   # int16 RMS below this counts as silence
+SD_SILENCE_HANGOVER_SEC = 1.0      # stop recording after this much continuous silence
+SD_CHUNK_SEC = 0.1
+
 if not logging.getLogger().handlers:
     logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(name)s: %(message)s")
 logger = logging.getLogger("Step12_VoicePaperTrade")
@@ -162,6 +188,18 @@ def describe_order(order):
     return f"BUY NIFTY {order['strike']} {order['side']} at market price. {ex_desc}."
 
 
+def compute_rms(int16_chunk):
+    """Root-mean-square loudness of a chunk of int16 audio samples -- the
+    energy measure the sounddevice backend uses to decide when speech starts
+    and stops. Plain-Python implementation (no numpy dependency) so this is
+    testable in any environment, including one without audio libraries
+    installed at all."""
+    if int16_chunk is None or len(int16_chunk) == 0:
+        return 0.0
+    values = [float(x) for x in int16_chunk]
+    return (sum(x * x for x in values) / len(values)) ** 0.5
+
+
 def check_exit_trigger(exit_condition, entry_spot, entry_price, current_spot, current_premium):
     """Pure decision function: given the exit condition set at entry and the
     latest live readings, should we exit now? Kept separate from any network
@@ -210,8 +248,9 @@ class VoicePaperTradeBot:
         self._expiry_cache, self._expiry_cache_date = None, None
         self._stop = threading.Event()
 
+        self.mic_backend = "pyaudio" if HAS_PYAUDIO else ("sounddevice" if HAS_SOUNDDEVICE else None)
         self.recognizer = sr.Recognizer() if HAS_SR else None
-        self.mic = sr.Microphone() if HAS_SR else None
+        self.mic = sr.Microphone() if (HAS_SR and self.mic_backend == "pyaudio") else None
 
     # ------------------------------------------------------------------
     # Persistence
@@ -297,15 +336,63 @@ class VoicePaperTradeBot:
     def listen_once(self, timeout=6, phrase_time_limit=8):
         if not HAS_SR:
             raise RuntimeError("SpeechRecognition is not installed. Run: "
-                                "pip install SpeechRecognition pyaudio --break-system-packages")
+                                "pip install SpeechRecognition --break-system-packages")
+        if self.mic_backend == "pyaudio":
+            return self._listen_once_pyaudio(timeout, phrase_time_limit)
+        if self.mic_backend == "sounddevice":
+            return self._listen_once_sounddevice(timeout, phrase_time_limit)
+        raise RuntimeError("No working microphone backend installed. Run: "
+                            "pip install sounddevice numpy --break-system-packages")
+
+    def _listen_once_pyaudio(self, timeout, phrase_time_limit):
         with self.mic as source:
             self.recognizer.adjust_for_ambient_noise(source, duration=0.4)
             try:
                 audio = self.recognizer.listen(source, timeout=timeout, phrase_time_limit=phrase_time_limit)
             except sr.WaitTimeoutError:
                 return None
+        return self._transcribe(audio)
+
+    def _listen_once_sounddevice(self, timeout, phrase_time_limit):
+        """Records via sounddevice (no compiled dependency, unlike pyaudio) using
+        a simple energy-based start/stop: waits up to `timeout` seconds for speech
+        to begin, then keeps recording until SD_SILENCE_HANGOVER_SEC of continuous
+        silence follows, capped at `phrase_time_limit` seconds of actual speech."""
+        chunk_frames = int(SD_SAMPLE_RATE * SD_CHUNK_SEC)
+        frames = []
+        started, silence_time, waited = False, 0.0, 0.0
+
+        with sd.InputStream(samplerate=SD_SAMPLE_RATE, channels=1, dtype="int16") as stream:
+            while True:
+                chunk, _ = stream.read(chunk_frames)
+                chunk = chunk.reshape(-1)
+                rms = compute_rms(chunk)
+
+                if not started:
+                    if rms > SD_SILENCE_RMS_THRESHOLD:
+                        started = True
+                        frames.append(chunk)
+                    else:
+                        waited += SD_CHUNK_SEC
+                        if waited >= timeout:
+                            return None
+                    continue
+
+                frames.append(chunk)
+                silence_time = 0.0 if rms > SD_SILENCE_RMS_THRESHOLD else (silence_time + SD_CHUNK_SEC)
+                speech_elapsed = sum(len(f) for f in frames) / SD_SAMPLE_RATE
+                if silence_time >= SD_SILENCE_HANGOVER_SEC or speech_elapsed >= phrase_time_limit:
+                    break
+
+        if not frames:
+            return None
+        audio_bytes = np.concatenate(frames).tobytes()
+        audio_data = sr.AudioData(audio_bytes, SD_SAMPLE_RATE, 2)
+        return self._transcribe(audio_data)
+
+    def _transcribe(self, audio_data):
         try:
-            text = self.recognizer.recognize_google(audio)
+            text = self.recognizer.recognize_google(audio_data)
             print(f"[HEARD] {text}")
             return text
         except sr.UnknownValueError:
@@ -442,10 +529,11 @@ class VoicePaperTradeBot:
                 self.speak("Didn't hear a clear confirm or cancel, so this trade was discarded for safety.")
 
     def run_forever(self):
-        if not HAS_SR:
-            raise RuntimeError("SpeechRecognition is not installed. Run: "
-                                "pip install SpeechRecognition pyaudio --break-system-packages")
-        self.log_event(f"Voice paper trading bot started. Capital: Rs {self.capital:,.2f}")
+        if not HAS_MIC_BACKEND:
+            raise RuntimeError("No working voice setup. Run: "
+                                "pip install SpeechRecognition sounddevice numpy --break-system-packages")
+        self.log_event(f"Voice paper trading bot started (mic backend: {self.mic_backend}). "
+                        f"Capital: Rs {self.capital:,.2f}")
         self.speak("Voice paper trading bot ready. Say a trade, for example: "
                     "Nifty 24200 CE take trade at market price.")
         listener = threading.Thread(target=self._listen_loop, daemon=True)
@@ -498,6 +586,13 @@ def run_self_checks():
     assert is_cancellation("no cancel it") and not is_cancellation("yes")
     print("  manual-exit / confirm / cancel word detection ok")
 
+    # --- compute_rms: the sounddevice backend's silence/speech detector ---
+    assert compute_rms([]) == 0.0
+    assert compute_rms([0, 0, 0]) == 0.0
+    assert abs(compute_rms([1000, -1000, 1000, -1000]) - 1000.0) < 1e-6
+    assert compute_rms([2000, 2000]) > compute_rms([200, 200]), "louder audio must score higher RMS"
+    print("  compute_rms ok")
+
     # --- describe_order: human-readable readback (the safety confirmation step) ---
     desc = describe_order(o)
     assert "24200" in desc and "CE" in desc and "24350" in desc
@@ -546,11 +641,14 @@ def run_self_checks():
 
 if __name__ == "__main__":
     run_self_checks()
-    if not HAS_SR:
-        print("SpeechRecognition/pyaudio not installed -- self-checks above prove the parsing and "
-              "exit-trigger logic are correct, but the bot itself can't run yet.")
-        print("Install with: pip install SpeechRecognition pyaudio --break-system-packages")
-        print("(Windows pyaudio issues: pip install pipwin  then  pipwin install pyaudio)")
+    if not HAS_MIC_BACKEND:
+        print("No working voice setup yet -- self-checks above prove the parsing and exit-trigger "
+              "logic are correct, but the bot itself can't run without a mic backend.")
+        print("Recommended (no compiling required, works on any recent Windows Python):")
+        print("    pip install SpeechRecognition sounddevice numpy --break-system-packages")
+        print("Alternative, if you'd rather use pyaudio and it builds cleanly on your machine:")
+        print("    pip install SpeechRecognition pyaudio --break-system-packages")
         sys.exit(0)
+    print(f"Using microphone backend: {'pyaudio' if HAS_PYAUDIO else 'sounddevice'}")
     bot = VoicePaperTradeBot()
     bot.run_forever()
