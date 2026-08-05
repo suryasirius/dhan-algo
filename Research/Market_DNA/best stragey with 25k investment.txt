@@ -1,0 +1,12 @@
+Good news — these backtests were actually built around a ₹25,000 starting capital already (found STARTING_CAPITAL = 25_000 hardcoded in the scripts), so I don't need to rescale, just prorate to 6 months and check whether ₹25k would have actually survived the drawdowns.
+
+Ran a command
+Ran a command
+
+Here's the honest comparison table, ₹25,000 starting capital, 6-month projection:
+
+Strategy	Backtest length	6-month projected return	Projected value after 6mo	Max drawdown seen	Would ₹25k have survived it?
+open_momentum_sweep_sl20_trail1	24 months (prorated)	+₹40,653 (+163%)	~₹65,650	-₹4,020	Yes, easily (16% of capital)
+six_concepts_rbi_gbi_relaxed	24 months (prorated)	+₹16,741 (+67%)	~₹41,740	-₹2,099	Yes, easily (8% of capital)
+orb_option_chart_5pt_sl4	6 months (actual, not prorated)	+₹213,881 (+856%)	~₹238,880	-₹19,788	Barely — 79% of capital wiped out at the worst point
+velez_8pt_proxy_premium	24 months (prorated)	+₹6,888 (+28%)	~₹31,890	-₹2,861	Yes, easily (11% of capital)

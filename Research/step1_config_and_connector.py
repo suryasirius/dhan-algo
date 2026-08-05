@@ -141,7 +141,14 @@ class DhanConnector:
             logger.exception(f"Option chain fetch failed: {e}")
             return None
 
-    def fetch_historical_intraday(self, security_id: str, exchange_segment: str) -> pd.DataFrame:
+    def fetch_historical_intraday(self, security_id: str, exchange_segment: str,
+                                   from_date: str = None, to_date: str = None,
+                                   interval: str = "5") -> pd.DataFrame:
+        """Fetches intraday candles. Defaults to today-only (used by the live
+        engine's per-cycle polling). Pass explicit from_date/to_date (YYYY-MM-DD
+        strings) to pull a multi-day warmup window instead - e.g. for indicators
+        that need more history than a single day provides (added for
+        step10_live_paper_best2.py's six_concepts SMA200 warmup)."""
         import datetime as _dt
         endpoint = f"{self.config.dhan_base_url}/charts/intraday"
         today_str = _dt.datetime.now().strftime("%Y-%m-%d")
@@ -149,9 +156,9 @@ class DhanConnector:
             "securityId": security_id,
             "exchangeSegment": exchange_segment,
             "instrument": "INDEX",
-            "interval": "5",
-            "fromDate": today_str,
-            "toDate": today_str
+            "interval": interval,
+            "fromDate": from_date or today_str,
+            "toDate": to_date or today_str
         }
         try:
             logger.info(f"Fetching historical data for security {security_id}...")
