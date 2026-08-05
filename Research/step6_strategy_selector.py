@@ -1,8 +1,20 @@
 """
 Module: step6_strategy_selector.py
-Description: Step 6 of the platform build. AI Strategy Selector that ranks 
-             Opening Drive, Velez, and ORB strategies dynamically based on 
+Description: Step 6 of the platform build. Ranks Opening Drive, Velez, and
+             ORB strategies using a hand-written scoring rubric based on
              Open Interest telemetry and Market Regime.
+
+             HONEST LABEL (added after a project review): despite the class
+             name below (kept as-is so step9_live_engine.py's import doesn't
+             break), this is NOT a trained/machine-learning model. Every
+             number here (+20, +15, +25, the 50.0 baseline, the 0.2 global
+             modifier, etc.) is a manually chosen constant, not something
+             learned from data. When this was actually tested -- backtesting
+             the top 5 strategies with and without this selector's filtering
+             -- it did not improve results. The two strategies now running
+             live in step10_live_paper_best2.py deliberately do NOT use this
+             module at all. Treat its output as a readable heuristic
+             scorecard, not an AI recommendation.
 """
 
 import logging
@@ -12,6 +24,10 @@ logger = logging.getLogger("Step6_StrategySelector")
 logger.setLevel(logging.INFO)
 
 class StrategySelectorAI:
+    """Class name kept unchanged (not renamed to e.g. StrategySelectorHeuristic)
+    so step9_live_engine.py's `from step6_strategy_selector import
+    StrategySelectorAI` keeps working without modification. See the module
+    docstring above -- this is a rule-based scorecard, not a trained model."""
     def __init__(self):
         # Baseline probability scores for each strategy
         self.strategies = ["Opening Drive", "Velez", "ORB"]
@@ -64,7 +80,7 @@ class StrategySelectorAI:
         ranked = sorted(scores.items(), key=lambda item: item[1], reverse=True)
         best_strategy, best_score = ranked[0]
         
-        # Generate AI Reason
+        # Generate a human-readable explanation of the rule-based score (not an AI-generated reason)
         reason = (
             f"Selected {best_strategy} with {best_score}% probability. "
             f"Market is showing '{oi_class}' with an OI Strength of {oi_strength:.2f}. "
