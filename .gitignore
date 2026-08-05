@@ -1,0 +1,36 @@
+# Secrets / credentials - never commit these
+logs/dhan_token.txt
+logs/dhan_client_id.txt
+**/logs/dhan_token.txt
+**/logs/dhan_client_id.txt
+dhan_config.py
+
+# Logs, databases, generated ledgers
+logs/
+**/logs/*.db
+**/logs/*.csv
+**/logs/*.txt
+*.db
+*.log
+
+# Reports / generated output
+output_reports/
+**/output_reports/
+**/outputs/
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
+*.egg-info/
+
+# OS/editor cruft
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# Editor lock files
+.~lock.*

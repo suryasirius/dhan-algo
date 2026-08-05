@@ -1,0 +1,85 @@
+Candle-Analysis Confirmation Filter Applied to the Top 3 Strategies -- 6-Month Comparison
+============================================================================================
+
+WHAT WAS DONE
+---------------
+Took your candle-analysis engine (the 9-concept Price Action & Market Structure compendium,
+run UNRESTRICTED this time -- all 9 concepts active, no Tue/Wed-only filter, no HTF trend
+filter, confluence=1, so it's being used purely as a general-purpose confirmation signal, not
+its already-narrowed live configuration) and used it as an EXTRA CONDITION on top of each of
+the top 3 strategies from your list: a trade from each strategy is only kept if the candle
+engine also fired an agreeing signal (final_sell for SHORT/PE trades, final_buy for LONG/CE
+trades) within the 10 minutes before or at that trade's own entry.
+
+Data: same 6-month local Nifty dataset used throughout (2026-02-02 to 2026-07-31, 122 trading
+days), resampled to 2-minute bars to match how Velez/Crash Play/Opening-Drive were originally
+built and tested. Each strategy kept its own money-model convention (Velez = raw index points
+x lot size, no delta; Crash Play & Opening-Drive = delta-scaled option-premium proxy) and its
+own stop/trail setting (8pt stop / 4pt trail, each strategy's established default) so the
+baseline-vs-filtered comparison is apples-to-apples within each strategy.
+
+COMPARISON TABLE
+-------------------------------------------------------------------------------------------------------
+Strategy                    | Trades | Win % | Profit Factor | SQN  | Net P&L (Rs) | Max DD (Rs)
+-----------------------------|--------|-------|----------------|------|--------------|-------------
+Velez 8pt -- baseline        |   63   | 34.9% |     2.25       | 1.44 |    25,206    |   -3,842
+Velez 8pt -- candle-filtered |   23   | 34.8% |     3.47        | 1.24 |    19,874    |   -2,706
+Crash Play -- baseline       |   58   | 31.0% |     0.92       | -0.21|    -1,079    |   -4,125
+Crash Play -- candle-filtered|   19   | 31.6% |     1.46       | 0.57 |     2,370    |   -1,451
+Opening-Drive -- baseline    |  122   | 49.2% |     1.51       | 1.83 |    16,855    |   -6,012
+Opening-Drive -- candle-filt |    0   |   --  |      --        |  --  |       0      |       0
+-------------------------------------------------------------------------------------------------------
+
+READING THIS TABLE
+---------------------
+1. VELEZ 8PT: filtering cut trade count from 63 to 23 (63% fewer trades). Win rate stayed
+   basically flat (34.9% -> 34.8%), but profit factor jumped to 3.47. FLAG: PF > 2.5 is this
+   project's own established red-flag threshold -- with only 23 trades, this needs more data
+   before trusting it; it's very likely a small-sample effect (the filter happened to remove
+   some of the biggest losers) rather than a proven improvement. Net Rs and max drawdown both
+   fell in proportion to the trade-count drop, so filtering didn't clearly IMPROVE money made
+   per unit of risk here -- it mostly just reduced volume.
+
+2. CRASH PLAY: this is the most encouraging result. Baseline was a net LOSER at this stop/trail
+   setting (PF 0.92, net -Rs 1,079) -- consistent with this project's own notes that Crash Play
+   needed a wider sweep to find its working combo, and 8/4 wasn't necessarily it. Once filtered
+   by the candle-analysis signal, it flipped to a small net winner (PF 1.46, net +Rs 2,370) on
+   19 trades. Still a very small sample and still a modest edge, but the DIRECTION of change
+   (loser -> winner) is a real, not just cosmetic, effect.
+
+3. OPENING-DRIVE MOMENTUM: zero trades survived the filter. This isn't a bug -- Opening-Drive
+   Momentum's whole design is to fire fast, in the first 30 minutes after market open (09:15-
+   09:45). The candle-analysis engine's own concepts need 14-30 bars of warmup (ATR, ADX, the
+   weak-arc rollover check) before they can vote at all, which eats up most or all of that same
+   09:15-09:45 window. The two signals structurally don't have time to overlap on the same day
+   -- this is a timing mismatch, not evidence the candle analysis disagrees with Opening-Drive's
+   trades.
+
+CAVEATS
+---------
+- Every filtered sample here is small (19-23 trades over 6 months). None of these numbers
+  should be treated as a settled verdict -- they're a first look, not a validated edge.
+- Crash Play's baseline used the same 8pt/4pt setting as Velez and Opening-Drive for
+  consistency, but Crash Play's own prior sweep in this project didn't land on one single
+  "locked" default the way the other two did -- so this baseline may understate what Crash Play
+  can normally do on its own best combo.
+- No in-sample/out-of-sample split was run on these filtered subsets -- with 19-23 trades,
+  splitting in half would leave ~10 trades per half, too thin to be meaningful.
+
+VERDICT
+--------
+Worth a longer look, not yet a strategy change:
+- Crash Play + candle-filter is the standout -- turned a loser into a winner and is worth
+  testing over a longer window and with Crash Play's own better-tuned stop/trail combo (not
+  just the 8/4 default borrowed from the other two).
+- Velez + candle-filter needs more trades before the PF 3.47 number can be trusted; treat it
+  as "needs verification," not "confirmed better."
+- Opening-Drive + candle-filter isn't a workable combination as designed -- the two signals
+  operate in different, non-overlapping parts of the trading day.
+
+FILES
+------
+cf_velez_baseline.csv / cf_velez_filtered.csv
+cf_crash_baseline.csv / cf_crash_filtered.csv
+cf_odm_baseline.csv / cf_odm_filtered.csv
+candle_filter_top3_6month.py -- engine

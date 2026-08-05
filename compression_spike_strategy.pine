@@ -1,0 +1,318 @@
+//@version=5
+// ============================================================================
+// Compression / Spike / Weak-Arc / Multi-Leg Structure Strategy  (v4)
+//
+// v4 CHANGES:
+//   - Every signal is now just a small NUMBER (1-9) instead of text like
+//     "BUY R" / "SELL rev" -- much smaller and less cluttered on chart.
+//   - The number is remembered for the whole trade and shown again on the
+//     exit label, e.g. "TP#3" or "SL#3" -- so when a stop/target hits you
+//     immediately know which signal type caused that trade.
+//   - All text/shapes forced to the smallest size available (tiny).
+//
+// SIGNAL NUMBER KEY (also shown in the on-chart legend, top-right):
+//   1 = BUY  - compression released into an upward spike
+//   2 = SELL - compression released into a downward spike
+//   3 = BUY  - rollover off a weak-arc bottom (fast-rejection confirmed)
+//   4 = SELL - rollover off a weak-arc top (fast-rejection confirmed)
+//   5 = BUY  - reversal after an up-failed / down-spike didn't hold
+//   6 = SELL - reversal after a down-failed / up-spike didn't hold
+//   7 = BUY  - leg-2 confirm (sharp fall = anchor, 2nd leg breaks up)
+//   8 = SELL - leg-2 confirm (sharp rally = anchor, 2nd leg breaks down)
+//   9 = SELL - edge of the last of several weakening domes
+//
+// Exit labels will read like "TP#7" (target hit, was a leg-2 buy) or
+// "SL#2" (stop hit, was a spike sell) -- the number always tells you which
+// of the 9 signal types opened that trade.
+//
+// ABOUT TRADINGVIEW'S OWN DEFAULT ARROWS: because this is a strategy()
+// script, TradingView ALSO auto-plots its own order-fill markers -- baked
+// into TradingView itself, separate from our numbered signals above. To
+// turn those off: click the script name -> gear icon -> "Style" tab ->
+// uncheck "Trade entries & exits". Doesn't affect Strategy Tester stats.
+// ============================================================================
+strategy("Compression / Spike / Weak-Arc / Multi-Leg Strategy v4", overlay=true,
+     default_qty_type=strategy.percent_of_equity, default_qty_value=100,
+     initial_capital=100000, commission_type=strategy.commission.percent, commission_value=0.02)
+
+// ---------------- Inputs: Compression ----------------
+grp1 = "Compression (tight mini-structure)"
+compLen         = input.int(10, "Compression Lookback (bars)", group=grp1)
+compThreshold   = input.float(0.55, "Tight if (range / (ATR*bars)) below this", step=0.05, group=grp1)
+minTightBars    = input.int(4, "Min consecutive tight bars before a spike counts", group=grp1)
+
+grp2 = "Spike / Breakout"
+atrLen          = input.int(14, "ATR Length", group=grp2)
+spikeMult       = input.float(1.7, "Spike bar range must exceed ATR x", step=0.1, group=grp2)
+breakoutLen     = input.int(10, "Breakout vs N-bar prior high/low", group=grp2)
+
+grp3 = "Exhaustion Filter (failed spike)"
+useExhaustion   = input.bool(true, "Flip signal if spike fails to hold", group=grp3)
+exhaustionBars  = input.int(3, "Bars allowed to hold beyond breakout level", group=grp3)
+
+grp4 = "Stretched Weak Arc (rollover)"
+adxLen          = input.int(14, "ADX/DMI Length", group=grp4)
+weakAdxThresh   = input.float(20, "ADX below this = weak trend", group=grp4)
+weakArcBars     = input.int(30, "Min bars of sustained weak trend", group=grp4)
+nearExtremePct  = input.float(0.5, "Within % of N-bar high/low to flag rollover", step=0.1, group=grp4)
+
+grp5 = "Direction"
+longEnabled     = input.bool(true, "Allow Long signals", group=grp5)
+shortEnabled    = input.bool(true, "Allow Short signals", group=grp5)
+
+grp6 = "Exits (Scalper: fixed points + time exit)"
+slPoints        = input.float(10, "Stop Loss (Nifty points)", group=grp6)
+tpPoints        = input.float(20, "Target (Nifty points, keep 10-30)", group=grp6)
+maxBarsInTrade  = input.int(15, "Max bars to hold a trade (time exit)", group=grp6)
+
+grp7 = "Display: show/hide each signal individually"
+showLegend             = input.bool(true,  "Show on-chart legend", group=grp7)
+showSpikeSignals       = input.bool(true,  "Show 1/2 - compression spike", group=grp7)
+showRolloverSignals    = input.bool(true,  "Show 3/4 - rollover", group=grp7)
+showFailedSpikeSignals = input.bool(true,  "Show 5/6 - failed spike reversal", group=grp7)
+showLeg2Signals        = input.bool(true,  "Show 7/8 - leg-2 confirm", group=grp7)
+showDomeSignals        = input.bool(true,  "Show 9 - weakening domes", group=grp7)
+showAirPocketLabel     = input.bool(true,  "Show air pocket info label", group=grp7)
+
+grp8 = "Multi-Leg Reversal (anchor + confirm)"
+useLegLogic     = input.bool(true, "Require Leg-2 confirmation after a sharp V-move", group=grp8)
+legMoveBars     = input.int(5, "Bars to measure sharp leg move", group=grp8)
+legMoveATRMult  = input.float(2.0, "Leg move must exceed ATR x over legMoveBars", group=grp8)
+
+grp9 = "Sequential Weakening Domes"
+domePivotBars      = input.int(5, "Pivot lookback bars for dome tops", group=grp9)
+domeBaseLen        = input.int(15, "Bars to check recent low when confirming dome edge break", group=grp9)
+minDomesWeakening  = input.int(2, "Min consecutive lower domes before edge-sell signal", group=grp9)
+
+grp10 = "Air Pocket (unsupported gap) Info"
+baseLookback        = input.int(200, "Bars to look back for last major base", group=grp10)
+
+grp11 = "Fast Rejection Confirmation (sniper entries)"
+useFastRejection     = input.bool(true, "Require fast rejection candle for rollover entries", group=grp11)
+rejectionWickRatio   = input.float(0.5, "Min wick-to-range ratio for valid rejection", step=0.05, group=grp11)
+
+// ---------------- Core measures ----------------
+atr = ta.atr(atrLen)
+
+shortRange   = ta.highest(high, compLen) - ta.lowest(low, compLen)
+compRatio    = shortRange / (atr * compLen)
+isTight      = compRatio < compThreshold
+
+var int tightCount = 0
+tightCount := isTight ? tightCount + 1 : 0
+compressionBuilt = tightCount >= minTightBars
+
+bigRangeBar  = (high - low) > spikeMult * atr
+priorHigh    = ta.highest(high[1], breakoutLen)
+priorLow     = ta.lowest(low[1], breakoutLen)
+
+spikeUp   = bigRangeBar and close > priorHigh and close > open
+spikeDown = bigRangeBar and close < priorLow  and close < open
+
+rawBuySignal  = longEnabled  and compressionBuilt and spikeUp
+rawSellSignal = shortEnabled and compressionBuilt and spikeDown
+
+// ---------------- Exhaustion filter (failed spike -> flip) ----------------
+var float breakoutLevelUp   = na
+var float breakoutLevelDown = na
+var int   barsSinceSpikeUp   = na
+var int   barsSinceSpikeDown = na
+
+if rawBuySignal
+    breakoutLevelUp := priorHigh
+    barsSinceSpikeUp := 0
+else if not na(barsSinceSpikeUp)
+    barsSinceSpikeUp := barsSinceSpikeUp + 1
+
+if rawSellSignal
+    breakoutLevelDown := priorLow
+    barsSinceSpikeDown := 0
+else if not na(barsSinceSpikeDown)
+    barsSinceSpikeDown := barsSinceSpikeDown + 1
+
+exhaustedUp   = useExhaustion and not na(barsSinceSpikeUp)   and barsSinceSpikeUp   <= exhaustionBars and close < breakoutLevelUp
+exhaustedDown = useExhaustion and not na(barsSinceSpikeDown) and barsSinceSpikeDown <= exhaustionBars and close > breakoutLevelDown
+
+// ---------------- Stretched weak arc (rollover) ----------------
+[diplus, diminus, adxVal] = ta.dmi(adxLen, adxLen)
+weakTrend = adxVal < weakAdxThresh
+
+var int weakCount = 0
+weakCount := weakTrend ? weakCount + 1 : 0
+stretchedWeakArc = weakCount >= weakArcBars
+
+extremeHigh = ta.highest(high, weakArcBars)
+extremeLow  = ta.lowest(low, weakArcBars)
+nearHigh = high >= extremeHigh * (1 - nearExtremePct/100)
+nearLow  = low  <= extremeLow  * (1 + nearExtremePct/100)
+
+// ---------------- Fast-rejection candle test (sniper confirmation) ----------------
+bullWick = math.min(open, close) - low
+bearWick = high - math.max(open, close)
+range_   = high - low
+fastRejectionUp   = range_ > 0 and (bullWick / range_) >= rejectionWickRatio and close > open
+fastRejectionDown = range_ > 0 and (bearWick / range_) >= rejectionWickRatio and close < open
+
+rolloverSellRaw = shortEnabled and stretchedWeakArc and nearHigh and (not useFastRejection or fastRejectionDown)
+rolloverBuyRaw  = longEnabled  and stretchedWeakArc and nearLow  and (not useFastRejection or fastRejectionUp)
+rolloverSell = rolloverSellRaw and not rolloverSellRaw[1]
+rolloverBuy  = rolloverBuyRaw  and not rolloverBuyRaw[1]
+
+// ---------------- Multi-leg reversal: anchor (leg1) then confirm (leg2) ----------------
+sharpDownLeg = (ta.highest(high, legMoveBars) - low) > legMoveATRMult * atr and low  <= ta.lowest(low, legMoveBars)
+sharpUpLeg   = (high - ta.lowest(low, legMoveBars))  > legMoveATRMult * atr and high >= ta.highest(high, legMoveBars)
+
+pivLowVal  = ta.pivotlow(2, 2)
+pivHighVal = ta.pivothigh(2, 2)
+
+var float anchorLowVal = na
+var bool  anchorActiveLong = false
+var float leg2LowVal = na
+
+if sharpDownLeg
+    anchorActiveLong := true
+    anchorLowVal := na
+    leg2LowVal := na
+
+if anchorActiveLong and not na(pivLowVal)
+    if na(anchorLowVal)
+        anchorLowVal := pivLowVal
+    else if na(leg2LowVal) and pivLowVal > anchorLowVal
+        leg2LowVal := pivLowVal
+
+leg2BuyConfirm = useLegLogic and longEnabled and anchorActiveLong and not na(leg2LowVal) and not na(pivHighVal) and close > pivHighVal and close > open
+if leg2BuyConfirm
+    anchorActiveLong := false
+
+var float anchorHighVal = na
+var bool  anchorActiveShort = false
+var float leg2HighVal = na
+
+if sharpUpLeg
+    anchorActiveShort := true
+    anchorHighVal := na
+    leg2HighVal := na
+
+if anchorActiveShort and not na(pivHighVal)
+    if na(anchorHighVal)
+        anchorHighVal := pivHighVal
+    else if na(leg2HighVal) and pivHighVal < anchorHighVal
+        leg2HighVal := pivHighVal
+
+leg2SellConfirm = useLegLogic and shortEnabled and anchorActiveShort and not na(leg2HighVal) and not na(pivLowVal) and close < pivLowVal and close < open
+if leg2SellConfirm
+    anchorActiveShort := false
+
+// ---------------- Sequential weakening domes (compounding weak-arc tops) ----------------
+pivHighForDome = ta.pivothigh(domePivotBars, domePivotBars)
+
+var float lastDomeHigh = na
+var int   weakDomeCount = 0
+
+if not na(pivHighForDome)
+    if not na(lastDomeHigh) and pivHighForDome < lastDomeHigh
+        weakDomeCount := weakDomeCount + 1
+    else
+        weakDomeCount := 0
+    lastDomeHigh := pivHighForDome
+
+weakeningDomes = weakDomeCount >= minDomesWeakening
+domeEdgeSell   = shortEnabled and weakeningDomes and close < ta.lowest(low[1], domeBaseLen)
+
+// ---------------- Air pocket (unsupported gap) info ----------------
+longTermBaseLow  = ta.lowest(low, baseLookback)
+airPocketPoints  = high - longTermBaseLow
+
+// ---------------- Signals gated by their individual show/hide toggle ----------------
+spikeBuyRaw     = rawBuySignal  and not exhaustedDown
+spikeSellRaw    = rawSellSignal and not exhaustedUp
+buyOnExhaustion  = useExhaustion and exhaustedDown and longEnabled
+sellOnExhaustion = useExhaustion and exhaustedUp   and shortEnabled
+rolloverBuySigRaw  = rolloverBuy  and not spikeBuyRaw
+rolloverSellSigRaw = rolloverSell and not spikeSellRaw
+
+spikeBuyOn     = spikeBuyRaw   and showSpikeSignals        // #1
+spikeSellOn    = spikeSellRaw  and showSpikeSignals        // #2
+rolloverBuyOn  = rolloverBuySigRaw  and showRolloverSignals // #3
+rolloverSellOn = rolloverSellSigRaw and showRolloverSignals // #4
+failedSpikeBuyOn  = buyOnExhaustion  and showFailedSpikeSignals // #5
+failedSpikeSellOn = sellOnExhaustion and showFailedSpikeSignals // #6
+leg2BuyOn   = leg2BuyConfirm  and showLeg2Signals  // #7
+leg2SellOn  = leg2SellConfirm and showLeg2Signals  // #8
+domeSellOn  = domeEdgeSell and showDomeSignals     // #9
+
+finalLong  = spikeBuyOn or rolloverBuyOn or failedSpikeBuyOn or leg2BuyOn
+finalShort = spikeSellOn or rolloverSellOn or failedSpikeSellOn or domeSellOn or leg2SellOn
+
+// which numbered signal is responsible, priority = order listed above
+longSignalId  = spikeBuyOn ? 1 : rolloverBuyOn ? 3 : failedSpikeBuyOn ? 5 : leg2BuyOn ? 7 : int(na)
+shortSignalId = spikeSellOn ? 2 : rolloverSellOn ? 4 : failedSpikeSellOn ? 6 : domeSellOn ? 9 : leg2SellOn ? 8 : int(na)
+
+var int activeSignalId = na
+if finalLong
+    activeSignalId := longSignalId
+if finalShort
+    activeSignalId := shortSignalId
+
+// ---------------- Strategy execution ----------------
+if finalLong
+    strategy.entry("Long", strategy.long)
+if finalShort
+    strategy.entry("Short", strategy.short)
+
+tpText = "TP#" + str.tostring(activeSignalId)
+slText = "SL#" + str.tostring(activeSignalId)
+
+if strategy.position_size > 0
+    strategy.exit("Long Exit", "Long",
+         stop=strategy.position_avg_price - slPoints,
+         limit=strategy.position_avg_price + tpPoints,
+         comment_profit=tpText, comment_loss=slText)
+if strategy.position_size < 0
+    strategy.exit("Short Exit", "Short",
+         stop=strategy.position_avg_price + slPoints,
+         limit=strategy.position_avg_price - tpPoints,
+         comment_profit=tpText, comment_loss=slText)
+
+var int barsInTrade = 0
+barsInTrade := strategy.position_size != 0 ? barsInTrade + 1 : 0
+if strategy.position_size != 0 and barsInTrade >= maxBarsInTrade
+    strategy.close_all(comment="TIME#" + str.tostring(activeSignalId))
+
+// ---------------- Plots: each signal is just a small number ----------------
+plotshape(spikeBuyOn,  title="1 Buy - Spike",  text="1", style=shape.triangleup,   location=location.belowbar, color=color.new(color.green, 0),  textcolor=color.green,  size=size.tiny)
+plotshape(spikeSellOn, title="2 Sell - Spike", text="2", style=shape.triangledown, location=location.abovebar, color=color.new(color.red, 0),    textcolor=color.red,    size=size.tiny)
+
+plotshape(rolloverBuyOn,  title="3 Buy - Rollover",  text="3", style=shape.diamond, location=location.belowbar, color=color.new(color.teal, 0),   textcolor=color.teal,   size=size.tiny)
+plotshape(rolloverSellOn, title="4 Sell - Rollover", text="4", style=shape.diamond, location=location.abovebar, color=color.new(color.orange, 0), textcolor=color.orange, size=size.tiny)
+
+plotshape(failedSpikeBuyOn,  title="5 Buy - Failed Spike Reversal",  text="5", style=shape.arrowup,   location=location.belowbar, color=color.new(color.blue, 0),   textcolor=color.blue,   size=size.tiny)
+plotshape(failedSpikeSellOn, title="6 Sell - Failed Spike Reversal", text="6", style=shape.arrowdown, location=location.abovebar, color=color.new(color.maroon, 0), textcolor=color.maroon, size=size.tiny)
+
+plotshape(leg2BuyOn,  title="7 Buy - Leg2 Confirm",  text="7", style=shape.arrowup,   location=location.belowbar, color=color.new(color.lime, 0),  textcolor=color.lime,  size=size.tiny)
+plotshape(leg2SellOn, title="8 Sell - Leg2 Confirm", text="8", style=shape.arrowdown, location=location.abovebar, color=color.new(color.olive, 0), textcolor=color.olive, size=size.tiny)
+
+plotshape(domeSellOn, title="9 Sell - Weakening Domes", text="9", style=shape.xcross, location=location.abovebar, color=color.new(color.yellow, 0), textcolor=color.black, size=size.tiny)
+
+if showAirPocketLabel and (rolloverSellOn or domeSellOn)
+    label.new(bar_index, high, text=str.tostring(airPocketPoints, "#") + "pt", style=label.style_label_down, color=color.new(color.gray, 60), textcolor=color.black, size=size.tiny)
+
+bgcolor(isTight ? color.new(color.blue, 85) : na, title="Compression zone")
+bgcolor(stretchedWeakArc ? color.new(color.orange, 85) : na, title="Stretched weak-arc zone")
+
+alertcondition(finalLong,  title="Buy Signal",  message="Compression/Spike Strategy: BUY")
+alertcondition(finalShort, title="Sell Signal", message="Compression/Spike Strategy: SELL")
+
+// ---------------- On-chart legend: number -> meaning, single compact column ----------------
+if showLegend and barstate.islast
+    var table legend = table.new(position.top_right, 1, 10, bgcolor=color.new(color.white, 20), border_width=1, border_color=color.gray)
+    table.cell(legend, 0, 0, "# = signal",       text_color=color.black, bgcolor=color.new(color.gray, 50), text_size=size.tiny)
+    table.cell(legend, 0, 1, "1 BUY spike",       text_color=color.green,  text_size=size.tiny)
+    table.cell(legend, 0, 2, "2 SELL spike",      text_color=color.red,    text_size=size.tiny)
+    table.cell(legend, 0, 3, "3 BUY rollover",    text_color=color.teal,   text_size=size.tiny)
+    table.cell(legend, 0, 4, "4 SELL rollover",   text_color=color.orange, text_size=size.tiny)
+    table.cell(legend, 0, 5, "5 BUY failed-spike",text_color=color.blue,   text_size=size.tiny)
+    table.cell(legend, 0, 6, "6 SELL failed-spike",text_color=color.maroon,text_size=size.tiny)
+    table.cell(legend, 0, 7, "7 BUY leg-2",       text_color=color.lime,   text_size=size.tiny)
+    table.cell(legend, 0, 8, "8 SELL leg-2",      text_color=color.olive,  text_size=size.tiny)
+    table.cell(legend, 0, 9, "9 SELL weak domes", text_color=color.black, bgcolor=color.new(color.yellow,40), text_size=size.tiny)

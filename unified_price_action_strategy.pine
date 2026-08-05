@@ -1,0 +1,235 @@
+//@version=5
+// ============================================================================
+// Unified Price Action / Market Structure Strategy
+// One combined signal engine -- output is just BUY or SELL, nothing else.
+//
+// Internally it still runs every concept discussed (compression building
+// into a spike, stretched weak-arc rollovers with a fast-rejection check,
+// failed-spike exhaustion reversals, the leg-1-anchor/leg-2-confirm rule,
+// sequential weakening domes, and an air-pocket weighting), but instead of
+// exposing which one fired, each concept casts one "vote" for BUY or SELL.
+// A single combined decision is made from the total votes -- you only ever
+// see BUY or SELL on the chart.
+//
+// DHAN WEBHOOK READY: entries/exits below carry alert_message="B"/"S" so
+// TradingView's {{strategy.order.alert_message}} placeholder maps straight
+// onto Dhan's "transactionType" field, and qty=tradeQty maps onto
+// {{strategy.order.contracts}} for the "quantity" field. See the "Broker
+// Execution" input group for the quantity to set (must match your Dhan
+// contract's lot size).
+// ============================================================================
+strategy("Unified Price Action Strategy", overlay=true,
+     default_qty_type=strategy.fixed, default_qty_value=1,
+     initial_capital=100000, commission_type=strategy.commission.percent, commission_value=0.02)
+
+// ---------------- Inputs ----------------
+grp0 = "Broker Execution"
+tradeQty = input.int(1, "Order Quantity (lots/contracts) - must match your Dhan symbol's lot size", minval=1, group=grp0)
+
+grpC = "Confluence"
+confluenceRequired = input.int(1, "Minimum concepts agreeing before a signal fires (raise to cut noise)", minval=1, maxval=6, group=grpC)
+longEnabled  = input.bool(true, "Allow BUY signals", group=grpC)
+shortEnabled = input.bool(true, "Allow SELL signals", group=grpC)
+
+grp1 = "Compression / Spike"
+compLen        = input.int(10, "Compression Lookback (bars)", group=grp1)
+compThreshold  = input.float(0.55, "Tight if (range / (ATR*bars)) below this", step=0.05, group=grp1)
+minTightBars   = input.int(4, "Min consecutive tight bars before a spike counts", group=grp1)
+atrLen         = input.int(14, "ATR Length", group=grp1)
+spikeMult      = input.float(1.7, "Spike bar range must exceed ATR x", step=0.1, group=grp1)
+breakoutLen    = input.int(10, "Breakout vs N-bar prior high/low", group=grp1)
+exhaustionBars = input.int(3, "Bars allowed to hold beyond breakout level (else = failed spike)", group=grp1)
+
+grp2 = "Weak Arc / Rollover"
+adxLen         = input.int(14, "ADX/DMI Length", group=grp2)
+weakAdxThresh  = input.float(20, "ADX below this = weak trend", group=grp2)
+weakArcBars    = input.int(30, "Min bars of sustained weak trend", group=grp2)
+nearExtremePct = input.float(0.5, "Within % of N-bar high/low to flag rollover", step=0.1, group=grp2)
+rejectionWickRatio = input.float(0.5, "Min wick-to-range ratio for a valid rejection", step=0.05, group=grp2)
+
+grp3 = "Leg-1 (anchor) / Leg-2 (confirm)"
+legMoveBars    = input.int(5, "Bars to measure a sharp leg move", group=grp3)
+legMoveATRMult = input.float(2.0, "Leg move must exceed ATR x over legMoveBars", group=grp3)
+
+grp4 = "Weakening Domes"
+domePivotBars     = input.int(5, "Pivot lookback bars for dome tops", group=grp4)
+domeBaseLen       = input.int(15, "Bars to check recent low when confirming dome edge break", group=grp4)
+minDomesWeakening = input.int(2, "Min consecutive lower domes before it counts as a vote", group=grp4)
+
+grp5 = "Air Pocket Weighting"
+baseLookback       = input.int(200, "Bars to look back for last major base", group=grp5)
+airPocketATRMult   = input.float(4.0, "Air pocket counts as 'large' above this x ATR", group=grp5)
+
+grp6 = "Exits (Scalper: fixed stop + trailing target)"
+slPoints         = input.float(10, "Stop Loss (points, fixed)", group=grp6)
+trailStartPoints = input.float(5, "Points in profit before trailing starts", group=grp6)
+trailGapPoints   = input.float(5, "Trailing gap once active (points)", group=grp6)
+maxBarsInTrade   = input.int(15, "Max bars to hold a trade", group=grp6)
+
+// ---------------- Core measures ----------------
+atr = ta.atr(atrLen)
+
+// -- Compression / spike --
+shortRange   = ta.highest(high, compLen) - ta.lowest(low, compLen)
+compRatio    = shortRange / (atr * compLen)
+isTight      = compRatio < compThreshold
+var int tightCount = 0
+tightCount := isTight ? tightCount + 1 : 0
+compressionBuilt = tightCount >= minTightBars
+
+bigRangeBar = (high - low) > spikeMult * atr
+priorHigh   = ta.highest(high[1], breakoutLen)
+priorLow    = ta.lowest(low[1], breakoutLen)
+spikeUp     = bigRangeBar and close > priorHigh and close > open
+spikeDown   = bigRangeBar and close < priorLow  and close < open
+
+rawBuySignal  = compressionBuilt and spikeUp
+rawSellSignal = compressionBuilt and spikeDown
+
+var float breakoutLevelUp   = na
+var float breakoutLevelDown = na
+var int   barsSinceSpikeUp   = na
+var int   barsSinceSpikeDown = na
+if rawBuySignal
+    breakoutLevelUp := priorHigh
+    barsSinceSpikeUp := 0
+else if not na(barsSinceSpikeUp)
+    barsSinceSpikeUp := barsSinceSpikeUp + 1
+if rawSellSignal
+    breakoutLevelDown := priorLow
+    barsSinceSpikeDown := 0
+else if not na(barsSinceSpikeDown)
+    barsSinceSpikeDown := barsSinceSpikeDown + 1
+
+exhaustedUp   = not na(barsSinceSpikeUp)   and barsSinceSpikeUp   <= exhaustionBars and close < breakoutLevelUp
+exhaustedDown = not na(barsSinceSpikeDown) and barsSinceSpikeDown <= exhaustionBars and close > breakoutLevelDown
+
+voteSpikeBuy      = rawBuySignal  and not exhaustedDown   // concept: compression -> spike
+voteSpikeSell     = rawSellSignal and not exhaustedUp
+voteReversalBuy   = exhaustedDown                          // concept: failed spike -> reversal
+voteReversalSell  = exhaustedUp
+
+// -- Weak arc / rollover with fast rejection --
+[diplus, diminus, adxVal] = ta.dmi(adxLen, adxLen)
+weakTrend = adxVal < weakAdxThresh
+var int weakCount = 0
+weakCount := weakTrend ? weakCount + 1 : 0
+stretchedWeakArc = weakCount >= weakArcBars
+
+extremeHigh = ta.highest(high, weakArcBars)
+extremeLow  = ta.lowest(low, weakArcBars)
+nearHigh = high >= extremeHigh * (1 - nearExtremePct/100)
+nearLow  = low  <= extremeLow  * (1 + nearExtremePct/100)
+
+bullWick = math.min(open, close) - low
+bearWick = high - math.max(open, close)
+range_   = high - low
+fastRejectionUp   = range_ > 0 and (bullWick / range_) >= rejectionWickRatio and close > open
+fastRejectionDown = range_ > 0 and (bearWick / range_) >= rejectionWickRatio and close < open
+
+rolloverBuyRaw  = stretchedWeakArc and nearLow  and fastRejectionUp
+rolloverSellRaw = stretchedWeakArc and nearHigh and fastRejectionDown
+voteRolloverBuy  = rolloverBuyRaw  and not rolloverBuyRaw[1]   // concept: weak-arc rollover
+voteRolloverSell = rolloverSellRaw and not rolloverSellRaw[1]
+
+// -- Leg-1 (anchor) / Leg-2 (confirm) --
+sharpDownLeg = (ta.highest(high, legMoveBars) - low) > legMoveATRMult * atr and low  <= ta.lowest(low, legMoveBars)
+sharpUpLeg   = (high - ta.lowest(low, legMoveBars))  > legMoveATRMult * atr and high >= ta.highest(high, legMoveBars)
+
+pivLowVal  = ta.pivotlow(2, 2)
+pivHighVal = ta.pivothigh(2, 2)
+
+var float anchorLowVal = na
+var bool  anchorActiveLong = false
+var float leg2LowVal = na
+if sharpDownLeg
+    anchorActiveLong := true
+    anchorLowVal := na
+    leg2LowVal := na
+if anchorActiveLong and not na(pivLowVal)
+    if na(anchorLowVal)
+        anchorLowVal := pivLowVal
+    else if na(leg2LowVal) and pivLowVal > anchorLowVal
+        leg2LowVal := pivLowVal
+voteLeg2Buy = anchorActiveLong and not na(leg2LowVal) and not na(pivHighVal) and close > pivHighVal and close > open   // concept: leg-2 confirm
+if voteLeg2Buy
+    anchorActiveLong := false
+
+var float anchorHighVal = na
+var bool  anchorActiveShort = false
+var float leg2HighVal = na
+if sharpUpLeg
+    anchorActiveShort := true
+    anchorHighVal := na
+    leg2HighVal := na
+if anchorActiveShort and not na(pivHighVal)
+    if na(anchorHighVal)
+        anchorHighVal := pivHighVal
+    else if na(leg2HighVal) and pivHighVal < anchorHighVal
+        leg2HighVal := pivHighVal
+voteLeg2Sell = anchorActiveShort and not na(leg2HighVal) and not na(pivLowVal) and close < pivLowVal and close < open
+if voteLeg2Sell
+    anchorActiveShort := false
+
+// -- Sequential weakening domes --
+pivHighForDome = ta.pivothigh(domePivotBars, domePivotBars)
+var float lastDomeHigh = na
+var int   weakDomeCount = 0
+if not na(pivHighForDome)
+    if not na(lastDomeHigh) and pivHighForDome < lastDomeHigh
+        weakDomeCount := weakDomeCount + 1
+    else
+        weakDomeCount := 0
+    lastDomeHigh := pivHighForDome
+weakeningDomes = weakDomeCount >= minDomesWeakening
+voteDomeSell   = weakeningDomes and close < ta.lowest(low[1], domeBaseLen)   // concept: weakening domes (downside only, per examples given)
+
+// -- Air pocket weighting (amplifies an existing bearish vote, doesn't create one alone) --
+longTermBaseLow = ta.lowest(low, baseLookback)
+airPocketPoints = high - longTermBaseLow
+largeAirPocket  = airPocketPoints > airPocketATRMult * atr
+voteAirPocketBoost = (voteRolloverSell or voteDomeSell) and largeAirPocket
+
+// ---------------- Combine every concept into one BUY/SELL decision ----------------
+bullVotes = (voteSpikeBuy ? 1 : 0) + (voteRolloverBuy ? 1 : 0) + (voteReversalBuy ? 1 : 0) + (voteLeg2Buy ? 1 : 0)
+bearVotes = (voteSpikeSell ? 1 : 0) + (voteRolloverSell ? 1 : 0) + (voteReversalSell ? 1 : 0) + (voteLeg2Sell ? 1 : 0) + (voteDomeSell ? 1 : 0) + (voteAirPocketBoost ? 1 : 0)
+
+finalBuy  = longEnabled  and bullVotes >= confluenceRequired and bullVotes > bearVotes
+finalSell = shortEnabled and bearVotes >= confluenceRequired and bearVotes > bullVotes
+
+// ---------------- Strategy execution ----------------
+if finalBuy
+    strategy.entry("Long", strategy.long, qty=tradeQty, alert_message="B")
+if finalSell
+    strategy.entry("Short", strategy.short, qty=tradeQty, alert_message="S")
+
+// Fixed 10pt stop-loss stays as the hard floor. Instead of a fixed target,
+// once price moves trailStartPoints in your favor, a trailing stop kicks in
+// and follows price at a distance of trailGapPoints -- so profit keeps
+// getting locked in as the trade runs, and it exits on a 5pt pullback from
+// the best price reached rather than waiting for one fixed target.
+if strategy.position_size > 0
+    strategy.exit("Long Exit", "Long",
+         stop=strategy.position_avg_price - slPoints,
+         trail_points=trailStartPoints, trail_offset=trailGapPoints,
+         comment_loss="STOP", comment_trail_points="TRAIL", alert_message="S")
+if strategy.position_size < 0
+    strategy.exit("Short Exit", "Short",
+         stop=strategy.position_avg_price + slPoints,
+         trail_points=trailStartPoints, trail_offset=trailGapPoints,
+         comment_loss="STOP", comment_trail_points="TRAIL", alert_message="B")
+
+var int barsInTrade = 0
+barsInTrade := strategy.position_size != 0 ? barsInTrade + 1 : 0
+if strategy.position_size != 0 and barsInTrade >= maxBarsInTrade
+    if strategy.position_size > 0
+        strategy.close("Long", comment="TIME EXIT", alert_message="S")
+    if strategy.position_size < 0
+        strategy.close("Short", comment="TIME EXIT", alert_message="B")
+
+// ---------------- Plot: only ever BUY or SELL ----------------
+plotshape(finalBuy,  title="BUY",  text="BUY",  style=shape.triangleup,   location=location.belowbar, color=color.new(color.green, 0), textcolor=color.green, size=size.small)
+plotshape(finalSell, title="SELL", text="SELL", style=shape.triangledown, location=location.abovebar, color=color.new(color.red, 0),   textcolor=color.red,   size=size.small)
+
+alertcondition(finalBuy,  title="BUY",  message="Unified Price Action Strategy: BUY")
+alertcondition(finalSell, title="SELL", message="Unified Price Action Strategy: SELL")

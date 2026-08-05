@@ -1,0 +1,14 @@
+====================================================================
+           EXECUTION ENTRY OPTIMIZER - RESEARCH REPORT              
+====================================================================
+
+Global Recommendation: USE LIMIT ENTRIES
+Recommended Global Offset: +10
+
+--- MASTER COMPARISON TABLE ---
+     Strategy Best Offset  Baseline Profit (Market)  Best Offset Profit  Profit Gain  Fill Rate %  Win Rate %  Profit Factor
+Opening Drive      Market                    2745.0              2745.0          0.0       100.00       40.16           1.06
+        Velez         +10                 -398990.0            -62737.5     336252.5        75.96       42.83           0.90
+          ORB          +8                  -17525.0            -11942.5       5582.5        87.70       53.27           0.89
+
+====================================================================

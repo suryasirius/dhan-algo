@@ -1,0 +1,1 @@
+STATUS: FAIL\nReason: Exported rows (5) are less than expected trading days threshold.\nRoot Cause: Input dataset Market_DNA.csv contains collapsed or insufficient rows.\n

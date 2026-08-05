@@ -1,0 +1,57 @@
+Candle Analysis -- "Higher Probability" Filter: Rollover (Concept 4) Only -- 6-Month Backtest
+================================================================================================
+
+WHAT CHANGED FROM THE FULL TEST
+---------------------------------
+Of the two active concepts in your locked strategy, Concept 4 (Rollover, sell) had the
+noticeably higher win rate in the full 6-month test: 62.5% vs Concept 2 (Compression Spike,
+sell) at 48.6%. This run switches Concept 2 off and trades ONLY Concept 4, same 5pt SL /
+10pt TP, same Tue/Wed + trend-filter rules, same 6 months of data (2026-02-02 to 2026-07-31).
+
+RESULT: CONCEPT 4 ONLY (Rollover, sell)
+------------------------------------------
+Trades: 16 | Win rate: 62.5% | Profit factor: 4.55 | SQN: 2.00
+Net points: 183.9 | Net P&L (proxy): Rs 6,532 | Max drawdown (proxy): Rs 1,239
+Exit mix: 37.5% stopped out, 56.25% hit target, 6.25% time exit.
+
+FOR COMPARISON: CONCEPT 2 ONLY (Compression Spike, sell)
+--------------------------------------------------------------
+Trades: 70 | Win rate: 48.6% | Profit factor: 1.42 | SQN: 1.27
+Net P&L (proxy): Rs 3,112 | Max drawdown (proxy): Rs 4,673
+
+WHY I'M NOT CALLING THIS A CLEAN WIN YET
+--------------------------------------------
+Two things temper how much to trust the 62.5%-win-rate, PF-4.55 number:
+
+1. Profit factor 4.55 is well above this project's own red-flag line (PF > 2.5 has meant a
+   bug or artifact every other time it's shown up here) -- so this needs to be treated as
+   "needs verification," not as a proven edge.
+
+2. Only 16 trades occurred in 6 months (about 1 every 11 days). That's too few to draw a
+   confident conclusion either way -- one single trade (2026-06-23, +79.85 points, nearly 8x
+   the intended 10-point target) accounts for a large share of the total profit. Remove that
+   one trade and the picture looks much more ordinary.
+
+3. Both this run and the full test use close-only stop/target checking on 1-min candles (an
+   established convention in this project) -- which means a trade can overshoot its 5-point
+   stop or 10-point target by a wide margin if price moves fast between candle closes. That's
+   exactly what happened on the outlier trade above. It's not a bug, but it does mean the
+   real-world result would likely be smaller (a broker would have gotten you out closer to
+   the actual 5/10 levels via a live stop order, not let it run to +79.85).
+
+An in-sample/out-of-sample split isn't meaningful here -- 16 trades split in half is only
+8 trades per half, far too small to say anything reliable.
+
+VERDICT
+--------
+Directionally interesting (Concept 4 alone does look like the stronger of your two active
+concepts), but NOT yet something to trade in isolation with confidence. Before switching to
+"Concept 4 only": (a) let more months of data accumulate so the sample grows past 16 trades,
+and (b) consider re-testing with a live/simulated stop order (not close-only) so the outlier
+overshoot doesn't inflate the number. For now, running the combined 2+4 strategy (which
+dilutes Concept 4's higher win rate but adds 4x the trade volume) remains the safer, better-
+supported choice.
+
+FILES
+------
+candle_pa_concept4_only_6month_trades.csv -- full 16-trade log for Concept 4 alone

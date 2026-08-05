@@ -1,0 +1,22 @@
+Date,Reason Removed,Pipeline Stage
+2026-08-01,Incomplete session (low candle count),Aggregation
+2026-02-02,Feature calculation warmup (rolling window NaN),Feature Calculation
+2026-02-03,Feature calculation warmup (rolling window NaN),Feature Calculation
+2026-02-04,Feature calculation warmup (rolling window NaN),Feature Calculation
+2026-02-05,Feature calculation warmup (rolling window NaN),Feature Calculation
+2026-02-06,Feature calculation warmup (rolling window NaN),Feature Calculation
+2026-02-09,Feature calculation warmup (rolling window NaN),Feature Calculation
+2026-02-10,Feature calculation warmup (rolling window NaN),Feature Calculation
+2026-02-11,Feature calculation warmup (rolling window NaN),Feature Calculation
+2026-02-12,Feature calculation warmup (rolling window NaN),Feature Calculation
+2026-02-13,Feature calculation warmup (rolling window NaN),Feature Calculation
+2026-02-16,Feature calculation warmup (rolling window NaN),Feature Calculation
+2026-02-17,Feature calculation warmup (rolling window NaN),Feature Calculation
+2026-02-18,Feature calculation warmup (rolling window NaN),Feature Calculation
+2026-02-19,Feature calculation warmup (rolling window NaN),Feature Calculation
+2026-02-20,Feature calculation warmup (rolling window NaN),Feature Calculation
+2026-02-23,Feature calculation warmup (rolling window NaN),Feature Calculation
+2026-02-24,Feature calculation warmup (rolling window NaN),Feature Calculation
+2026-02-25,Feature calculation warmup (rolling window NaN),Feature Calculation
+2026-02-26,Feature calculation warmup (rolling window NaN),Feature Calculation
+2026-02-27,Feature calculation warmup (rolling window NaN),Feature Calculation

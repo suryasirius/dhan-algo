@@ -1,0 +1,518 @@
+<h1>Market Regime Classification Report</h1><table border="1" class="dataframe">
+  <thead>
+    <tr style="text-align: right;">
+      <th></th>
+      <th>date</th>
+      <th>open</th>
+      <th>high</th>
+      <th>low</th>
+      <th>close</th>
+      <th>volume</th>
+      <th>Opening_Volume</th>
+      <th>net_change</th>
+      <th>pct_change</th>
+      <th>day_range</th>
+      <th>Gap_Pct</th>
+      <th>VWAP_Distance</th>
+      <th>Distance_from_VWAP</th>
+      <th>ATR</th>
+      <th>Previous_Day_Trend</th>
+      <th>market_archetype</th>
+      <th>Market_Type</th>
+      <th>Regime</th>
+      <th>Trend_Strength</th>
+      <th>Trend_Score</th>
+      <th>Volatility_Score</th>
+      <th>Momentum_Score</th>
+      <th>Gap_Score</th>
+      <th>Volume_Score</th>
+      <th>Risk_Score</th>
+      <th>Confidence_Score</th>
+      <th>Confidence</th>
+      <th>Reason</th>
+      <th>Top_Features</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <th>137</th>
+      <td>2026-03-11</td>
+      <td>32113.672514</td>
+      <td>32483.556242</td>
+      <td>31561.666603</td>
+      <td>31943.530971</td>
+      <td>9415640</td>
+      <td>25292</td>
+      <td>-170.141544</td>
+      <td>-0.529810</td>
+      <td>921.889639</td>
+      <td>-0.106224</td>
+      <td>-0.192866</td>
+      <td>-0.192866</td>
+      <td>50.151210</td>
+      <td>Bullish</td>
+      <td>Strong Trend Down</td>
+      <td>Range</td>
+      <td>Strong Trend Down</td>
+      <td>7.967812</td>
+      <td>7.967812</td>
+      <td>76.624314</td>
+      <td>46.016094</td>
+      <td>35.916684</td>
+      <td>41.433189</td>
+      <td>64.412025</td>
+      <td>53.983906</td>
+      <td>0.539839</td>
+      <td>Bounded oscillation without directional commitment.</td>
+      <td>Trend_Score, Volatility_Score, Volume_Score, Gap_Score</td>
+    </tr>
+    <tr>
+      <th>138</th>
+      <td>2026-03-12</td>
+      <td>31985.344397</td>
+      <td>32437.398690</td>
+      <td>31685.611045</td>
+      <td>32271.267378</td>
+      <td>10060957</td>
+      <td>44001</td>
+      <td>285.922982</td>
+      <td>0.893919</td>
+      <td>751.787645</td>
+      <td>0.130898</td>
+      <td>0.860634</td>
+      <td>0.860634</td>
+      <td>51.110687</td>
+      <td>Bearish</td>
+      <td>Strong Trend Up</td>
+      <td>High Volatility</td>
+      <td>Strong Trend Up</td>
+      <td>13.443634</td>
+      <td>13.443634</td>
+      <td>80.655713</td>
+      <td>56.721817</td>
+      <td>44.259641</td>
+      <td>80.755532</td>
+      <td>69.736892</td>
+      <td>56.721817</td>
+      <td>0.567218</td>
+      <td>Elevated ATR and wide intraday range.</td>
+      <td>Trend_Score, Volatility_Score, Volume_Score, Gap_Score</td>
+    </tr>
+    <tr>
+      <th>139</th>
+      <td>2026-03-13</td>
+      <td>32262.519893</td>
+      <td>33189.640036</td>
+      <td>32202.763488</td>
+      <td>32809.760912</td>
+      <td>9243063</td>
+      <td>39191</td>
+      <td>547.241020</td>
+      <td>1.696213</td>
+      <td>986.876548</td>
+      <td>-0.027106</td>
+      <td>0.510408</td>
+      <td>0.510408</td>
+      <td>52.492279</td>
+      <td>Bullish</td>
+      <td>Strong Trend Up</td>
+      <td>High Volatility</td>
+      <td>Strong Trend Up</td>
+      <td>25.509328</td>
+      <td>25.509328</td>
+      <td>86.460693</td>
+      <td>62.754664</td>
+      <td>9.165207</td>
+      <td>30.917223</td>
+      <td>63.272047</td>
+      <td>62.754664</td>
+      <td>0.627547</td>
+      <td>Elevated ATR and wide intraday range.</td>
+      <td>Trend_Score, Volatility_Score, Volume_Score, Gap_Score</td>
+    </tr>
+    <tr>
+      <th>140</th>
+      <td>2026-03-16</td>
+      <td>32801.401814</td>
+      <td>33170.559027</td>
+      <td>32360.732457</td>
+      <td>32850.125145</td>
+      <td>9405386</td>
+      <td>2476</td>
+      <td>48.723331</td>
+      <td>0.148540</td>
+      <td>809.826570</td>
+      <td>-0.025477</td>
+      <td>0.386760</td>
+      <td>0.386760</td>
+      <td>52.366041</td>
+      <td>Bullish</td>
+      <td>Moderate Trend</td>
+      <td>High Volatility</td>
+      <td>Moderate Trend</td>
+      <td>2.233897</td>
+      <td>2.233897</td>
+      <td>85.930286</td>
+      <td>51.116949</td>
+      <td>8.614527</td>
+      <td>40.808363</td>
+      <td>62.735558</td>
+      <td>51.116949</td>
+      <td>0.511169</td>
+      <td>Elevated ATR and wide intraday range.</td>
+      <td>Trend_Score, Volatility_Score, Volume_Score, Gap_Score</td>
+    </tr>
+    <tr>
+      <th>141</th>
+      <td>2026-03-17</td>
+      <td>32819.949421</td>
+      <td>33746.022423</td>
+      <td>32786.555716</td>
+      <td>33527.346137</td>
+      <td>9765144</td>
+      <td>29274</td>
+      <td>707.396716</td>
+      <td>2.155386</td>
+      <td>959.466707</td>
+      <td>-0.091859</td>
+      <td>0.990536</td>
+      <td>0.990536</td>
+      <td>52.775049</td>
+      <td>Bullish</td>
+      <td>Strong Trend Up</td>
+      <td>High Volatility</td>
+      <td>Strong Trend Up</td>
+      <td>32.414833</td>
+      <td>32.414833</td>
+      <td>87.648798</td>
+      <td>66.207417</td>
+      <td>31.059590</td>
+      <td>62.730189</td>
+      <td>70.672036</td>
+      <td>66.207417</td>
+      <td>0.662074</td>
+      <td>Elevated ATR and wide intraday range.</td>
+      <td>Trend_Score, Volatility_Score, Volume_Score, Gap_Score</td>
+    </tr>
+    <tr>
+      <th>142</th>
+      <td>2026-03-18</td>
+      <td>33617.248109</td>
+      <td>33844.510032</td>
+      <td>32731.929582</td>
+      <td>32809.447023</td>
+      <td>9975612</td>
+      <td>28288</td>
+      <td>-807.801086</td>
+      <td>-2.402936</td>
+      <td>1112.580450</td>
+      <td>0.268145</td>
+      <td>-1.860051</td>
+      <td>-1.860051</td>
+      <td>54.896985</td>
+      <td>Bullish</td>
+      <td>Strong Trend Down</td>
+      <td>High Volatility</td>
+      <td>Strong Trend Down</td>
+      <td>36.137735</td>
+      <td>36.137735</td>
+      <td>96.564457</td>
+      <td>31.931132</td>
+      <td>90.666133</td>
+      <td>75.555041</td>
+      <td>94.794960</td>
+      <td>68.068868</td>
+      <td>0.680689</td>
+      <td>Elevated ATR and wide intraday range.</td>
+      <td>Trend_Score, Volatility_Score, Volume_Score, Gap_Score</td>
+    </tr>
+    <tr>
+      <th>143</th>
+      <td>2026-03-19</td>
+      <td>32793.325593</td>
+      <td>33324.190466</td>
+      <td>32297.962420</td>
+      <td>33218.771223</td>
+      <td>9136316</td>
+      <td>24184</td>
+      <td>425.445630</td>
+      <td>1.297354</td>
+      <td>1026.228046</td>
+      <td>-0.049137</td>
+      <td>1.222685</td>
+      <td>1.222685</td>
+      <td>50.505439</td>
+      <td>Bearish</td>
+      <td>Strong Trend Up</td>
+      <td>Range</td>
+      <td>Strong Trend Up</td>
+      <td>19.510898</td>
+      <td>19.510898</td>
+      <td>78.112663</td>
+      <td>59.755449</td>
+      <td>16.614210</td>
+      <td>24.412603</td>
+      <td>59.663127</td>
+      <td>59.755449</td>
+      <td>0.597554</td>
+      <td>Bounded oscillation without directional commitment.</td>
+      <td>Trend_Score, Volatility_Score, Volume_Score, Gap_Score</td>
+    </tr>
+    <tr>
+      <th>144</th>
+      <td>2026-03-20</td>
+      <td>33222.779554</td>
+      <td>33707.786978</td>
+      <td>33115.505853</td>
+      <td>33418.793870</td>
+      <td>9595770</td>
+      <td>39496</td>
+      <td>196.014316</td>
+      <td>0.590000</td>
+      <td>592.281125</td>
+      <td>0.012066</td>
+      <td>0.138267</td>
+      <td>0.138267</td>
+      <td>54.435322</td>
+      <td>Bullish</td>
+      <td>Strong Trend Up</td>
+      <td>High Volatility</td>
+      <td>Strong Trend Up</td>
+      <td>8.873000</td>
+      <td>8.873000</td>
+      <td>94.624707</td>
+      <td>54.436500</td>
+      <td>4.079952</td>
+      <td>52.409397</td>
+      <td>67.461280</td>
+      <td>54.436500</td>
+      <td>0.544365</td>
+      <td>Elevated ATR and wide intraday range.</td>
+      <td>Trend_Score, Volatility_Score, Volume_Score, Gap_Score</td>
+    </tr>
+    <tr>
+      <th>145</th>
+      <td>2026-03-23</td>
+      <td>33366.557587</td>
+      <td>35000.761166</td>
+      <td>33240.897267</td>
+      <td>34957.010333</td>
+      <td>9472479</td>
+      <td>14169</td>
+      <td>1590.452746</td>
+      <td>4.766607</td>
+      <td>1759.863900</td>
+      <td>-0.156308</td>
+      <td>2.657064</td>
+      <td>2.657064</td>
+      <td>54.207657</td>
+      <td>Bullish</td>
+      <td>Strong Trend Up</td>
+      <td>Strong Trend Up</td>
+      <td>Strong Trend Up</td>
+      <td>71.684957</td>
+      <td>71.684957</td>
+      <td>93.668134</td>
+      <td>85.842478</td>
+      <td>52.851405</td>
+      <td>44.896670</td>
+      <td>81.423115</td>
+      <td>85.842478</td>
+      <td>0.858425</td>
+      <td>Strong upward price expansion (+4.77%).</td>
+      <td>Trend_Score, Volatility_Score, Volume_Score, Gap_Score</td>
+    </tr>
+    <tr>
+      <th>146</th>
+      <td>2026-03-24</td>
+      <td>35060.395734</td>
+      <td>35404.925336</td>
+      <td>33970.082609</td>
+      <td>34010.281236</td>
+      <td>9309025</td>
+      <td>17290</td>
+      <td>-1050.114498</td>
+      <td>-2.995159</td>
+      <td>1434.842728</td>
+      <td>0.295750</td>
+      <td>-2.075193</td>
+      <td>-2.075193</td>
+      <td>55.714648</td>
+      <td>Bullish</td>
+      <td>Strong Trend Down</td>
+      <td>High Volatility</td>
+      <td>Strong Trend Down</td>
+      <td>45.044161</td>
+      <td>45.044161</td>
+      <td>100.000000</td>
+      <td>27.477919</td>
+      <td>99.999997</td>
+      <td>34.936612</td>
+      <td>99.999999</td>
+      <td>72.522081</td>
+      <td>0.725221</td>
+      <td>Elevated ATR and wide intraday range.</td>
+      <td>Trend_Score, Volatility_Score, Volume_Score, Gap_Score</td>
+    </tr>
+    <tr>
+      <th>147</th>
+      <td>2026-03-25</td>
+      <td>33964.501841</td>
+      <td>34020.165078</td>
+      <td>32790.536134</td>
+      <td>33497.592781</td>
+      <td>9072086</td>
+      <td>26468</td>
+      <td>-466.909060</td>
+      <td>-1.374697</td>
+      <td>1229.628944</td>
+      <td>-0.134605</td>
+      <td>0.400073</td>
+      <td>0.400073</td>
+      <td>51.844078</td>
+      <td>Bearish</td>
+      <td>Strong Trend Down</td>
+      <td>High Volatility</td>
+      <td>Strong Trend Down</td>
+      <td>20.674057</td>
+      <td>20.674057</td>
+      <td>83.737174</td>
+      <td>39.662971</td>
+      <td>45.512939</td>
+      <td>20.498752</td>
+      <td>72.269904</td>
+      <td>60.337029</td>
+      <td>0.603370</td>
+      <td>Elevated ATR and wide intraday range.</td>
+      <td>Trend_Score, Volatility_Score, Volume_Score, Gap_Score</td>
+    </tr>
+    <tr>
+      <th>148</th>
+      <td>2026-03-26</td>
+      <td>33479.680307</td>
+      <td>33688.006452</td>
+      <td>32859.439091</td>
+      <td>33464.625338</td>
+      <td>9342838</td>
+      <td>32671</td>
+      <td>-15.054969</td>
+      <td>-0.044967</td>
+      <td>828.567361</td>
+      <td>-0.053474</td>
+      <td>0.854945</td>
+      <td>0.854945</td>
+      <td>52.757393</td>
+      <td>Bearish</td>
+      <td>Inside Day / Range</td>
+      <td>High Volatility</td>
+      <td>Inside Day / Range</td>
+      <td>0.676265</td>
+      <td>0.676265</td>
+      <td>87.574612</td>
+      <td>49.661867</td>
+      <td>18.080774</td>
+      <td>36.997005</td>
+      <td>66.726461</td>
+      <td>50.338133</td>
+      <td>0.503381</td>
+      <td>Elevated ATR and wide intraday range.</td>
+      <td>Trend_Score, Volatility_Score, Volume_Score, Gap_Score</td>
+    </tr>
+    <tr>
+      <th>149</th>
+      <td>2026-03-27</td>
+      <td>33447.605847</td>
+      <td>33501.761391</td>
+      <td>32790.851372</td>
+      <td>33363.127377</td>
+      <td>9236493</td>
+      <td>26867</td>
+      <td>-84.478470</td>
+      <td>-0.252570</td>
+      <td>710.910019</td>
+      <td>-0.050858</td>
+      <td>0.861998</td>
+      <td>0.861998</td>
+      <td>54.697880</td>
+      <td>Bearish</td>
+      <td>Moderate Trend</td>
+      <td>High Volatility</td>
+      <td>Moderate Trend</td>
+      <td>3.798391</td>
+      <td>3.798391</td>
+      <td>95.727887</td>
+      <td>48.100805</td>
+      <td>17.196325</td>
+      <td>30.516880</td>
+      <td>72.168419</td>
+      <td>51.899195</td>
+      <td>0.518992</td>
+      <td>Elevated ATR and wide intraday range.</td>
+      <td>Trend_Score, Volatility_Score, Volume_Score, Gap_Score</td>
+    </tr>
+    <tr>
+      <th>150</th>
+      <td>2026-03-30</td>
+      <td>33293.529172</td>
+      <td>33453.102699</td>
+      <td>32650.664594</td>
+      <td>32882.044639</td>
+      <td>9652856</td>
+      <td>24920</td>
+      <td>-411.484533</td>
+      <td>-1.235929</td>
+      <td>802.438105</td>
+      <td>-0.208608</td>
+      <td>-0.577698</td>
+      <td>-0.577698</td>
+      <td>51.462414</td>
+      <td>Bearish</td>
+      <td>Strong Trend Down</td>
+      <td>High Volatility</td>
+      <td>Strong Trend Down</td>
+      <td>18.587130</td>
+      <td>18.587130</td>
+      <td>82.133552</td>
+      <td>40.706435</td>
+      <td>70.535271</td>
+      <td>55.887928</td>
+      <td>78.654067</td>
+      <td>59.293565</td>
+      <td>0.592936</td>
+      <td>Elevated ATR and wide intraday range.</td>
+      <td>Trend_Score, Volatility_Score, Volume_Score, Gap_Score</td>
+    </tr>
+    <tr>
+      <th>151</th>
+      <td>2026-03-31</td>
+      <td>32907.141606</td>
+      <td>33254.782421</td>
+      <td>32277.462877</td>
+      <td>32968.526104</td>
+      <td>9442198</td>
+      <td>6927</td>
+      <td>61.384498</td>
+      <td>0.186539</td>
+      <td>977.319544</td>
+      <td>0.076324</td>
+      <td>0.640726</td>
+      <td>0.640726</td>
+      <td>50.326908</td>
+      <td>Bearish</td>
+      <td>Moderate Trend</td>
+      <td>Range</td>
+      <td>Moderate Trend</td>
+      <td>2.805351</td>
+      <td>2.805351</td>
+      <td>77.362538</td>
+      <td>51.402676</td>
+      <td>25.806998</td>
+      <td>43.051499</td>
+      <td>61.895876</td>
+      <td>51.402676</td>
+      <td>0.514027</td>
+      <td>Bounded oscillation without directional commitment.</td>
+      <td>Trend_Score, Volatility_Score, Volume_Score, Gap_Score</td>
+    </tr>
+  </tbody>
+</table>

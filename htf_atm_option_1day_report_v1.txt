@@ -1,0 +1,23 @@
+Nifty Forming-15-Minute Candle ATM Option Backtest
+
+Backtest date: 2026-07-31
+Data: Dhan Nifty one-minute candles from dhan_historical_data_180days_v5.csv
+Completed 15-minute candles traded: 25
+
+Strategy:
+- After 5 completed one-minute candles, buy an ATM CE when the forming 15-minute candle is green; otherwise buy an ATM PE when it is red.
+- Enter at the open of the next one-minute candle and exit at the close of the 15-minute candle.
+- One independent trade per complete 15-minute candle.
+
+Results:
+- Wins: 12 / 25 (48.00%)
+- Gross proxy P&L: Rs -1,015.62
+- Brokerage assumed: Rs 1,000.00
+- Net proxy P&L: Rs -2,015.62
+- Average proxy P&L per trade: Rs -80.62
+- Maximum proxy drawdown: Rs -2,837.87
+
+Important limitation:
+- Dhan historical option premiums are unavailable in this project (DH-901), so this is not real option-premium P&L.
+- The option result is a proxy using 0.50 ATM delta and Rs 100.00 starting premium. It excludes theta, implied-volatility changes, bid-ask spread, and slippage.
+- This single-day result is only a workflow check, not evidence that the strategy is profitable.

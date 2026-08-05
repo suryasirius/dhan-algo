@@ -1,0 +1,22 @@
+====================================================================
+          INSTITUTIONAL BACKTEST AUDITOR - FINAL REPORT             
+====================================================================
+OVERALL AUDIT SCORE: 85.0%
+AUDIT STATUS:        FAILED
+
+--- AUDIT CHECKS ---
+Duplicate Check     : PASS
+Look-Ahead Bias     : PASS
+Reconciliation      : FAIL (1 mismatches)
+
+--- AUDITED PORTFOLIO METRICS ---
+ - total_trades        : 1
+ - win_rate            : 0.0
+ - net_profit          : -732.52
+ - gross_profit        : 0.0
+ - gross_loss          : 732.52
+ - profit_factor       : 0.0
+ - max_drawdown        : 0.0
+ - sharpe              : 0.0
+
+--- RECOMMENDATIONS ---

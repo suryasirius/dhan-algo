@@ -1,0 +1,48 @@
+15-Minute Candle Direction Prediction Analysis
+
+Input: training_dataset_180days_v2.csv
+Total 15-minute bars: 3,050
+Chronological training bars: 2,440
+Chronological test bars: 610
+Test period: 2026-06-29 13:00:00+05:30 to 2026-07-31 15:15:00+05:30
+
+Average out-of-sample accuracy by model:
+- Current HTF Direction: 76.72%
+- Logistic Regression: 76.38%
+- Random Forest: 75.87%
+
+Best non-baseline result:
+- Random Forest at minute 14: 93.28% accuracy, 0.986 ROC-AUC
+
+Best model by minute:
+- Minute 1: Logistic Regression at 62.13%
+- Minute 2: Current HTF Direction at 64.43%
+- Minute 3: Current HTF Direction at 65.57%
+- Minute 4: Current HTF Direction at 70.16%
+- Minute 5: Logistic Regression at 72.79%
+- Minute 6: Current HTF Direction at 73.93%
+- Minute 7: Logistic Regression at 76.56%
+- Minute 8: Random Forest at 78.03%
+- Minute 9: Current HTF Direction at 80.16%
+- Minute 10: Random Forest at 82.46%
+- Minute 11: Random Forest at 82.79%
+- Minute 12: Logistic Regression at 84.59%
+- Minute 13: Current HTF Direction at 88.85%
+- Minute 14: Current HTF Direction at 93.44%
+
+Top average Random Forest features:
+- close_from_htf_open_atr: 0.2329
+- htf_body_atr: 0.2158
+- close_ema9_atr: 0.0741
+- close_ema21_atr: 0.0712
+- return_5m: 0.0588
+- rsi14: 0.0574
+- ema_spread_atr: 0.0401
+- htf_range_atr: 0.0313
+- return_1m: 0.0275
+- htf_upper_wick_atr: 0.0271
+
+Interpretation:
+- Results are out-of-sample because the newest 20% of 15-minute bars are never used for training.
+- Minute 15 is intentionally excluded because its final direction is already known.
+- Accuracy alone is not a trading edge; costs, slippage, confidence thresholds, and repeated walk-forward tests must be evaluated before live use.

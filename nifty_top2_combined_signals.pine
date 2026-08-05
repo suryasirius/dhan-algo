@@ -1,0 +1,169 @@
+//@version=5
+indicator("Nifty Top-2 Combined -- Velez 8pt (PE) + Opening-Drive (CE-only)", overlay=true, max_bars_back=500)
+
+// =============================================================================
+// SIGNAL-ONLY PORT of top2_ce_only_opening_drive_backtest.py / nifty_paper_trade_top3_live.py
+// (the confirmed top-2 combined strategy: Velez 8pt short + Opening-Drive
+// Momentum, CE-only variant, Crash Play and Two-Touch Resistance dropped).
+//
+// This is an INDICATOR, not a strategy -- it does not simulate the option
+// premium, a position, or the 8pt initial-stop / 4pt-trailing-stop exit.
+// Signal DETECTION happens on the NIFTY INDEX itself (exactly how the
+// Python backtest detects it too). Once a signal fires here:
+//   - buy the suggested ITM option (PE for Velez, CE for Opening-Drive)
+//     at the OPEN of the bar right after the signal bar (matches the
+//     backtest's exec_idx = signal_bar + 1 fill rule)
+//   - manage that position with an 8-point initial stop and a 4-point
+//     trailing stop measured on the OPTION'S OWN LTP (not the index) --
+//     that is what "8pt / 4pt" meant in every backtest number you've seen
+//     for this strategy.
+//
+// APPLY THIS ON A 2-MINUTE NIFTY INDEX CHART. Both signal types were
+// tuned and backtested on 2-min bars; a different timeframe will not
+// reproduce the same signals. A warning label appears if the chart isn't
+// on 2min.
+//
+// Cross-day lookups are explicitly blocked (barsIntoDay guards below) so
+// a signal can never be built from yesterday's bars leaking into today's
+// pattern -- this mirrors the Python backtest, which slices the index
+// data into single trading days before scanning for a signal.
+// =============================================================================
+
+// ---------------- Inputs ----------------
+showVelez    = input.bool(true, "Show Velez 8pt (PE) signals", group="Signals")
+showOD       = input.bool(true, "Show Opening-Drive (CE-only) signals", group="Signals")
+odCutoffHour = input.int(9, "Opening-Drive cutoff hour (IST)", minval=0, maxval=23, group="Opening-Drive")
+odCutoffMin  = input.int(45, "Opening-Drive cutoff minute (IST)", minval=0, maxval=59, group="Opening-Drive")
+odMinMovePts = input.float(5.0, "Opening-Drive min move (index pts)", group="Opening-Drive")
+strikeStep   = input.int(50, "Strike step (for suggested ITM strike label)", group="Strikes")
+showInfoTable = input.bool(true, "Show info table", group="Display")
+
+// ---------------- Timeframe guard ----------------
+is2min = timeframe.isminutes and timeframe.multiplier == 2
+var bool tfWarningShown = false
+if not is2min and barstate.islast and not tfWarningShown
+    label.new(bar_index, high, "WARNING: apply on a 2-MIN chart\nfor accurate signals", style=label.style_label_down, color=color.new(color.orange, 0), textcolor=color.white, size=size.small)
+    tfWarningShown := true
+
+// ---------------- Shared helpers ----------------
+is_green(o, c) => c > o
+is_red(o, c) => c < o
+is_small(r, a) => not na(a) and a > 0 and r < 0.6 * a
+is_elephant_plus_bear(o, h, l, c, a) =>
+    r = h - l
+    not na(a) and a > 0 and (r * 0.8) > (2.0 * a) and is_red(o, c)
+itmCallStrike(spot) => math.floor(spot / strikeStep) * strikeStep
+itmPutStrike(spot) => math.ceil(spot / strikeStep) * strikeStep
+
+// ---------------- IST day/session tracking ----------------
+istHour   = hour(time, "Asia/Kolkata")
+istMinute = minute(time, "Asia/Kolkata")
+istDay    = dayofmonth(time, "Asia/Kolkata")
+istMonth  = month(time, "Asia/Kolkata")
+istYear   = year(time, "Asia/Kolkata")
+
+newDay = bar_index == 0 or istDay != istDay[1] or istMonth != istMonth[1] or istYear != istYear[1]
+
+var float dayOpen = na
+var bool odFiredToday = false
+var int barsIntoDay = 0
+
+if newDay
+    dayOpen := open
+    odFiredToday := false
+    barsIntoDay := 0
+else
+    barsIntoDay := barsIntoDay + 1
+
+// =============================================================================
+// STRATEGY 1: Velez 8pt short (GBI + ELEPHANT_PLUS), verbatim from
+// velez_8pt_proxy_premium_test.py / nifty_paper_trade_top3_live.py -> BUY PE
+// =============================================================================
+POP_SLOPE_LOOKBACK = 5
+
+sma20  = ta.sma(close, 20)
+sma200 = ta.sma(close, 200)
+rng    = high - low
+avgRange = ta.sma(rng[1], 20)
+
+popBearishGate = barsIntoDay >= POP_SLOPE_LOOKBACK and not na(sma20) and not na(sma200) and not na(sma20[POP_SLOPE_LOOKBACK]) and
+                 close < sma20 and sma20 < sma200 and sma20 < sma20[POP_SLOPE_LOOKBACK]
+
+near20 = not na(sma20) and math.abs(close - sma20) / close < 0.0015
+
+// find_small_green_run, ported 1:1: scan backward from the bar just before
+// the signal bar for a run of consecutive small green bars, then require a
+// red bar immediately before that run -- all bars must stay inside today
+// (barsIntoDay guard), matching the Python per-day slice.
+runFound = false
+combHigh = float(na)
+combLow  = float(na)
+if popBearishGate and near20 and 1 <= barsIntoDay and is_green(open[1], close[1]) and is_small(high[1] - low[1], avgRange[1])
+    combHigh := high[1]
+    combLow  := low[1]
+    startOff = 1
+    k = 2
+    while k <= 30 and k <= barsIntoDay
+        if is_green(open[k], close[k]) and is_small(high[k] - low[k], avgRange[k])
+            combHigh := math.max(combHigh, high[k])
+            combLow  := math.min(combLow, low[k])
+            startOff := k
+            k := k + 1
+        else
+            break
+    beforeOff = startOff + 1
+    if beforeOff <= barsIntoDay and is_red(open[beforeOff], close[beforeOff])
+        runFound := true
+
+gbiSignal = popBearishGate and near20 and runFound and (close < combLow) and is_red(open, close)
+elephantSignal = popBearishGate and not gbiSignal and 1 <= barsIntoDay and
+                 is_elephant_plus_bear(open[1], high[1], low[1], close[1], avgRange[1]) and (close < low[1])
+
+velezSignal = showVelez and (gbiSignal or elephantSignal)
+velezEvent  = gbiSignal ? "GBI" : "ELEPHANT_PLUS"
+
+// =============================================================================
+// STRATEGY 2: Opening-Drive Momentum, CE-ONLY, verbatim from
+// find_opening_drive_ce_only (top2_ce_only_opening_drive_backtest.py) ->
+// BUY CE. Down-moves are ignored entirely; scanning continues for a later
+// up-move before the cutoff. Only the FIRST qualifying up-move each day fires.
+// =============================================================================
+nowMinutesOfDay    = istHour * 60 + istMinute
+cutoffMinutesOfDay = odCutoffHour * 60 + odCutoffMin
+inWindow = nowMinutesOfDay < cutoffMinutesOfDay
+
+odMove = close - dayOpen
+odSignal = showOD and inWindow and not odFiredToday and not na(dayOpen) and odMove >= odMinMovePts
+if odSignal
+    odFiredToday := true
+
+// =============================================================================
+// Plots / labels / alerts
+// =============================================================================
+plotshape(velezSignal, title="Velez 8pt PE signal", style=shape.triangledown, location=location.abovebar, color=color.red, size=size.small)
+if velezSignal
+    strikePE = itmPutStrike(dayOpen)
+    label.new(bar_index, high, "BUY PE " + str.tostring(strikePE) + "\n(" + velezEvent + ")\nenter next bar open\n8pt SL / 4pt trail on LTP",
+      style=label.style_label_down, color=color.new(color.red, 0), textcolor=color.white, size=size.small)
+
+plotshape(odSignal, title="Opening-Drive CE signal", style=shape.triangleup, location=location.belowbar, color=color.lime, size=size.small)
+if odSignal
+    strikeCE = itmCallStrike(dayOpen)
+    label.new(bar_index, low, "BUY CE " + str.tostring(strikeCE) + "\n(Opening-Drive)\nenter next bar open\n8pt SL / 4pt trail on LTP",
+      style=label.style_label_up, color=color.new(color.green, 0), textcolor=color.white, size=size.small)
+
+alertcondition(velezSignal, title="Velez 8pt -> BUY PE", message="VELEZ 8pt SHORT -> BUY PE. Enter at next bar's open. Manage 8pt initial stop / 4pt trail on the option's own LTP.")
+alertcondition(odSignal, title="Opening-Drive -> BUY CE", message="OPENING-DRIVE (CE-only) -> BUY CE. Enter at next bar's open. Manage 8pt initial stop / 4pt trail on the option's own LTP.")
+
+plot(dayOpen, title="Day open", color=color.new(color.gray, 40), style=plot.style_circles)
+
+var table infoTable = table.new(position.top_right, 2, 4, border_width=1)
+if showInfoTable and barstate.islast
+    table.cell(infoTable, 0, 0, "Day open", text_color=color.white, bgcolor=color.gray)
+    table.cell(infoTable, 1, 0, str.tostring(dayOpen, "#.##"), text_color=color.white, bgcolor=color.gray)
+    table.cell(infoTable, 0, 1, "OD fired today", text_color=color.white, bgcolor=color.gray)
+    table.cell(infoTable, 1, 1, odFiredToday ? "YES" : "no", text_color=color.white, bgcolor=color.gray)
+    table.cell(infoTable, 0, 2, "SMA20 vs SMA200", text_color=color.white, bgcolor=color.gray)
+    table.cell(infoTable, 1, 2, na(sma20) or na(sma200) ? "n/a (warming up)" : (sma20 < sma200 ? "bearish bias" : "bullish bias"), text_color=color.white, bgcolor=color.gray)
+    table.cell(infoTable, 0, 3, "Chart TF ok?", text_color=color.white, bgcolor=color.gray)
+    table.cell(infoTable, 1, 3, is2min ? "yes (2min)" : "NO -- switch to 2min", text_color=is2min ? color.lime : color.orange, bgcolor=color.gray)

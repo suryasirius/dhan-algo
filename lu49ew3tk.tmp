@@ -1,0 +1,30 @@
+﻿Strike Momentum Strategy — Draft Rule Sheet
+Concept by Nilus · Drafted for review · 27 July 2026
+1. Overview
+The idea is to trade a single option strike intraday, entering only when that strike's premium shows sustained upward strength right from the market open. The trade is protected first by a wide initial stop, then by a tighter stop that trails candle by candle once the trade is in profit.
+2. Entry Trigger
+Watch the premium of the chosen strike from market open.
+    1. Note the strike's premium at market open (the “opening premium”).
+    2. Track the premium as trading continues. The setup stays valid as long as the premium never trades more than 5 points below the opening premium — i.e., it stays flat-to-rising, or dips but never by more than 5 points from the open.
+    3. If the premium ever falls more than 5 points below the opening premium, the setup is invalidated for that strike — do not enter (or exit if already tracking it as a pending setup).
+    4. If the setup remains valid and the premium is moving higher, enter a long (buy) trade on that strike.
+3. Stop-Loss Rules
+3.1 Initial stop loss
+On entry, place a hard stop loss 10 points below the entry premium. This stays in place while the trade is flat or underwater.
+3.2 Switch to trailing stop
+Once the trade moves into profit, replace the 10-point initial stop with a candle-based trailing stop of 3 points:
+    • As each new candle closes higher and price advances in your favor, move the stop loss to 3 points below that candle's low.
+    • The trailing stop only ever moves up (tightens), never back down.
+    • Exit the trade the moment price hits the current trailing stop.
+In short: 10-point fixed stop while the trade hasn't proven itself → 3-point candle-trailing stop once it has.
+4. Open Questions to Confirm with Nilus
+The concept is clear on the entry idea and the two stop-loss stages, but a few operational details still need to be pinned down before this is tradeable as written:
+    • Candle timeframe — what chart interval (1-minute, 3-minute, 5-minute?) is used for the trailing stop and for judging the 5-point pullback rule?
+    • “Moves into profit” threshold — how many points of profit trigger the switch from the 10-point stop to the 3-point trail? (e.g., immediately, or after +5, +10 points?)
+    • Strike selection — how is “the particular strike” chosen each day (ATM, a fixed offset from spot, highest open interest, etc.)? Calls only, or puts too?
+    • Instrument and index — which underlying (e.g., Nifty, Bank Nifty, a stock) and lot size does this apply to?
+    • Time window — how long after market open is the setup evaluated before it's considered “invalidated” or “confirmed”?
+    • Targets and exits — is there a profit target, or is the trailing stop the only exit? Any hard time-based exit (e.g., square off by a fixed time)?
+    • Position sizing and frequency — how much capital/lots per trade, and is this a one-trade-per-day setup or can it re-enter after a stop-out?
+5. Disclaimer
+This document is a plain-language write-up of the strategy idea as described, for discussion and refinement purposes only. It is not financial advice, and hasn't been backtested or validated here. Options trading carries substantial risk of loss; confirm the open questions above and consider testing on historical data or in a paper account before risking real capital.

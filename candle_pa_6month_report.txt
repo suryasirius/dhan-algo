@@ -1,0 +1,124 @@
+Candle-Analysis (Price Action & Market Structure) Strategy -- 6-Month Offline Backtest
+========================================================================================
+
+SOURCE
+------
+docxwork/Price_Action_Market_Structure_Strategy.pdf -- your 9-concept candle/market-structure
+compendium (Compression->Spike, Repeated Compression Compounds, Stretched Weak Arc->Rollover,
+Sequential Weakening Domes, Support/Resistance Reaction Speed, Sharp vs Rounded-Top structures,
+Multi-Leg Reversal (Anchor+Confirm), Air Pocket, Resistance/Support Inheritance & Decay), already
+codified into unified_price_action_strategy.pine and dhan_live_bot.py. This run reuses that exact
+codification and its already-locked, previously-tuned risk parameters, tested fresh against a new
+standalone offline engine (candle_pa_6month_offline_backtest.py) built for this request.
+
+DATA
+----
+dhan_historical_data_180days_v5.csv -- Nifty 1-min candles, 2026-02-02 to 2026-07-31
+(122 trading days, ~6 months). Already collected in this project; no live API call was needed
+or made.
+
+STRATEGY AS TESTED (matches your already-locked dhan_live_bot.py configuration)
+---------------------------------------------------------------------------------
+- Only concepts 2 (Compression Spike, sell) and 4 (Rollover, sell) are active. The other seven
+  (1,3,5,6,7,8,9) are the ones your own prior testing in this project found unprofitable or
+  too thin on data, so they stay switched off here too -- this is not a new decision, just
+  carrying forward what you'd already established.
+- Filters: Tuesday/Wednesday only (Thu/Fri were net losers in your prior 6-month test); the
+  5-minute AND 15-minute EMA(9/21) trend must both agree with the signal direction.
+- Exits: fixed 5-point stop-loss / 10-point target (1:2 risk:reward), no trailing -- this is
+  the exact "previous" stop-loss and target you asked me to reuse. A trailing-stop version was
+  tried before and dropped (underperformed on 1-min close-only data), so it wasn't retested here.
+- Max holding time: 15 bars, then a time exit.
+- Money simulation (proxy, since Dhan doesn't expose historical option premiums -- documented,
+  known platform limitation, not re-investigated here): Nifty lot size 65, assumed delta 0.6,
+  1 lot/trade, Rs 40 brokerage per round trip, Rs 10,000 starting capital.
+
+RIGOR FIX APPLIED
+------------------
+The original backtest.py filled a new position at the SAME bar's close that generated the
+signal -- a look-ahead fill. This run fixes that: entries fill at the OPEN of the next bar.
+The effect was small (86 trades / Rs 9,644 net with the fix vs 85 trades / Rs 9,932 without),
+so the original result wasn't meaningfully inflated by this bug, but the fixed number is the
+one to trust.
+
+HEADLINE RESULT -- previous stop-loss/target (5pt SL / 10pt TP)
+------------------------------------------------------------------
+Trades: 86 | Win rate: 51.2% | Profit factor: 1.81 | SQN: 2.20
+Net points: 335.5 | Net P&L (proxy): Rs 9,644 | Max drawdown (proxy): Rs 2,741
+Exit mix: 47.7% stopped out, 47.7% hit target, 4.7% time exit.
+This sits right in this project's calibration range for a believable result (PF 1.4-1.7 is
+the established benchmark; 1.81 is a bit above that but nowhere near the >2.5 red-flag line).
+
+ENTRY-FREQUENCY & CLUSTERING DIAGNOSTICS
+-------------------------------------------
+- Fires on 22 / 122 eligible days (18.0%) -- not degenerate (a signal firing on 90%+ of days
+  would suggest it had collapsed into "trade near the open" noise; this one hasn't).
+- Direction split: 100% SHORT (0 long trades) -- expected, since both active concepts (2 and 4)
+  are sell-side only by design.
+- Entry-hour clustering: busiest hour holds 25.6% of entries -- spread out, not bunched into
+  one narrow window.
+- By concept: Compression Spike (sell) = 70 trades, Rollover (sell) = 16 trades.
+
+IN-SAMPLE / OUT-OF-SAMPLE SPLIT (cut at the midpoint trading day, 2026-05-04)
+---------------------------------------------------------------------------------
+First half:  39 trades, PF 2.23, SQN 2.29, net P&L (proxy) Rs 5,940
+Second half: 47 trades, PF 1.55, SQN 1.12, net P&L (proxy) Rs 3,705
+Both halves are net positive, so this isn't "got lucky in one quarter and lost the rest" --
+but the edge visibly weakens in the second half (SQN roughly halves). Worth watching, not
+disqualifying on its own.
+
+STANDARD SL x TARGET SWEEP (5 stop-loss values x 6 target values, 30 combos; full grid in
+candle_pa_6month_sweep.csv)
+---------------------------------------------------------------------------------------------
+Best by SQN: SL=4 / TP=12 -> PF 2.22, SQN 2.84, 85 trades, net P&L (proxy) Rs 12,916,
+max drawdown (proxy) Rs 1,827.
+Runner-up combos (SL=10/TP=12, SL=6/TP=12, SL=12/TP=12) all cluster around SQN ~2.5-2.6,
+suggesting TP=12 is a genuine local sweet spot rather than a fluke of one combo.
+
+Grid-edge check: SL=4 sits at this grid's low boundary, so the grid was extended down to
+SL=2 and SL=3 (with TP re-checked at 8/10/12/16) to see if performance kept climbing toward
+an even tighter stop. It didn't -- SL=3/TP=12 (SQN 2.80) and SL=2/TP=12 (SQN 2.79) both come
+in slightly BELOW SL=4/TP=12 (SQN 2.84), i.e. results level off rather than keep climbing.
+That's the signature of a real interior optimum, not the "picking up pennies in front of a
+steamroller" tail-risk-harvesting pattern flagged elsewhere in this project. SL=4/TP=12 is a
+reasonable candidate to trade; it is tighter than your original 5/10 and worth considering as
+an update, but 5/10 remains defensible too (PF/SQN both still solid, and it's the parameter
+set already live-validated).
+
+RED-FLAG CHECK
+----------------
+PF > 2.5? No (best combo 2.22, headline 1.81). SQN > 5? No (best combo 2.84, headline 2.20).
+Passes -- no bug-hunt required before trusting these numbers.
+
+CAPITAL ADEQUACY
+------------------
+With Rs 10,000 starting capital, 65 lot size, 0.6 assumed delta: no wipeout at any point across
+the 6-month run (headline 5/10 config). Max drawdown Rs 2,741 stayed well inside starting capital.
+
+VERDICT
+--------
+Tradeable as-is with the previous 5pt SL / 10pt TP parameters -- results are consistent with
+this project's other validated strategies (PF ~1.8, SQN ~2.2, no red flags, survives IS/OOS
+split, not a low-sample fluke). SL=4/TP=12 tested moderately better (SQN 2.84) and passed the
+grid-edge check, so it's a reasonable upgrade to consider, but isn't dramatically different in
+kind from what you were already running.
+
+OPTIMIZATIONS TO CONSIDER NEXT
+---------------------------------
+- Second-half weakening (SQN 2.29 -> 1.12): worth a fresh IS/OOS check again once more months
+  of data accumulate, to see if this is a real fade or just this window's noise.
+- Only 18% of days fire and only the sell-side concepts are active -- if you want more trade
+  frequency, concepts 1/3/5/6/7/8/9 would need to be re-examined, but your own prior testing
+  in this project already found them weak or unprofitable standalone, so that's a bigger
+  re-investigation, not a quick tweak.
+- This is still the proxy premium model (delta-scaled underlying move, not real historical
+  option prices) -- Dhan's real option-chain endpoint remains blocked server-side per this
+  project's prior 7-round investigation, so real premium validation isn't available here.
+
+FILES
+------
+candle_pa_6month_offline_backtest.py -- engine (indicators, signal logic, trade simulation, self-checks)
+candle_pa_6month_run.py -- orchestrator (data load, headline run, sweep, report)
+candle_pa_6month_trades.csv -- full trade-by-trade log (headline 5/10 config, rigor-fixed fill)
+candle_pa_6month_sweep.csv -- full 30-combo SL x TP grid
+candle_pa_6month_sweep_edgecheck.csv -- SL=2/3 grid-edge extension check

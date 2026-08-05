@@ -1,0 +1,27 @@
+Category,Detail,Amount (INR)
+Report Period,2026-08-07 to 2026-08-13,
+Gross Revenue (Turf),,0
+Total Net Profit (Turf),,-60
+Equal Share Per Partner,,-30
+Playo Amount (Vincent),,328
+
+Partner,Metric,Value
+Surya,Collected,0
+Surya,Expenses,60
+Surya,Net Hand,-60
+Vincent,Collected,0
+Vincent,Expenses,0
+Vincent,Net Hand,0
+
+Settlement Status,,
+Base Settlement,Vincent -> Surya,30
+Playo Adjustment,Vincent owes Surya (Share),-164
+Final Transfer Required,Vincent pays Surya,194
+
+
+--- DAILY BREAKDOWN (SUMMARY) ---
+Date,Online Count,Offline Count,Balls Sold,Total Cash,Total UPI,Surya Cash,Surya UPI,Vincent Cash,Vincent UPI,Total Revenue
+
+
+--- DETAILED TRANSACTION LOG (BOOKING WISE) ---
+Date,Time Range,Type,Advance,Adv. By,On Spot Cash,On Spot UPI,On Spot Total,On Spot Collector,Grand Total,Notes

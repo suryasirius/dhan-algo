@@ -1,0 +1,3 @@
+logged_at,strategy,event,action,side,strike,bar_time,price,exit_reason,pnl_pts,rupee_pnl,lot_size,day_running_pnl_rs
+2026-08-03T09:19:05,OpeningDrive,PE,ENTRY,PE,24600,2026-08-03 09:17:00,73.0,,,,65,0.0
+2026-08-03T09:25:07,OpeningDrive,PE,EXIT,PE,24600,2026-08-03 09:25:00,96.03,TRAIL_SL,23.03,1456.95,65,1456.95
