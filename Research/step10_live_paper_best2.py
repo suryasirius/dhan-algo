@@ -136,8 +136,17 @@ class Best2LivePaperEngine:
             entry_time TEXT, exit_time TEXT,
             entry_price REAL, exit_price REAL, exit_reason TEXT,
             pnl_pts REAL, rupee_pnl REAL, lot_size INTEGER,
-            capital_after REAL, status TEXT
+            capital_after REAL, status TEXT,
+            initial_stop REAL, current_stop REAL, peak_price REAL,
+            last_price REAL, target_note TEXT, reason TEXT
         )''')
+        # Backward-compatible schema upgrade for DBs created before these
+        # live-monitoring columns existed (older best2_paper_portfolio.db files).
+        existing_cols = {row[1] for row in cur.execute("PRAGMA table_info(paper_orders)").fetchall()}
+        for col, coltype in [("initial_stop", "REAL"), ("current_stop", "REAL"), ("peak_price", "REAL"),
+                              ("last_price", "REAL"), ("target_note", "TEXT"), ("reason", "TEXT")]:
+            if col not in existing_cols:
+                cur.execute(f"ALTER TABLE paper_orders ADD COLUMN {col} {coltype}")
         cur.execute('''CREATE TABLE IF NOT EXISTS event_logs (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             timestamp TEXT, event_message TEXT
@@ -168,18 +177,32 @@ class Best2LivePaperEngine:
             logger.exception("Failed to write event log")
         logger.info(message)
 
-    def _record_open(self, strategy, direction, side, entry_time, entry_price):
+    def _record_open(self, strategy, direction, side, entry_time, entry_price, stop_pts, reason, lot_size):
+        initial_stop = entry_price - stop_pts
+        target_note = "No fixed target - exits via trailing stop or 15:20 EOD square-off"
         conn = sqlite3.connect(self.db_path, check_same_thread=False)
         cur = conn.cursor()
         cur.execute('''INSERT INTO paper_orders
-            (date, strategy, direction, side, entry_time, entry_price, status, capital_after)
-            VALUES (?, ?, ?, ?, ?, ?, 'OPEN', ?)''',
+            (date, strategy, direction, side, entry_time, entry_price, status, capital_after,
+             initial_stop, current_stop, peak_price, last_price, target_note, reason, lot_size)
+            VALUES (?, ?, ?, ?, ?, ?, 'OPEN', ?, ?, ?, ?, ?, ?, ?, ?)''',
             (str(entry_time.date()), strategy, direction, side, entry_time.isoformat(),
-             entry_price, self.capital))
+             entry_price, self.capital, initial_stop, initial_stop, entry_price, entry_price,
+             target_note, reason, lot_size))
         conn.commit()
         row_id = cur.lastrowid
         conn.close()
         return row_id
+
+    def _update_live_state(self, row_id, current_stop, peak_price, last_price):
+        try:
+            conn = sqlite3.connect(self.db_path, check_same_thread=False)
+            conn.execute('''UPDATE paper_orders SET current_stop=?, peak_price=?, last_price=?
+                WHERE id=? AND status='OPEN' ''', (current_stop, peak_price, last_price, row_id))
+            conn.commit()
+            conn.close()
+        except Exception:
+            logger.exception("Failed to update live position state")
 
     def _record_close(self, row_id, exit_time, exit_price, exit_reason, pnl_pts, rupee_pnl, lot_size):
         conn = sqlite3.connect(self.db_path, check_same_thread=False)
@@ -277,7 +300,10 @@ class Best2LivePaperEngine:
         entry_price = float(premium_df["open"].iloc[exec_idx])
         lot = om.lot_size_for_date(entry_time.date())
 
-        row_id = self._record_open("open_momentum", direction, side, entry_time, entry_price)
+        reason = (f"Opening-Drive Momentum: Nifty moved {om.MIN_MOVE_PTS}+ points {direction.lower()} "
+                  f"within the first 30 min (before {om.ENTRY_CUTOFF}), confirming an early trend day.")
+        row_id = self._record_open("open_momentum", direction, side, entry_time, entry_price,
+                                    OM_STOP_PTS, reason, lot)
         self.om_position = {
             "row_id": row_id, "direction": direction, "side": side, "strike": strike,
             "entry_time": entry_time, "entry_price": entry_price, "lot": lot,
@@ -294,6 +320,7 @@ class Best2LivePaperEngine:
             return
         premium_df = om.build_premium_series(today_df, pos["strike"], day_open_spot, pos["side"])
         bar = premium_df.loc[bar_time]
+        self._update_live_state(pos["row_id"], pos["stop_level"], pos["peak"], float(bar["close"]))
 
         # Faithful to om.simulate_trade's conservative ordering: check this
         # bar's low against the stop level AS IT STOOD BEFORE this bar first.
@@ -310,6 +337,7 @@ class Best2LivePaperEngine:
             pos["trailing_active"] = True
         if pos["trailing_active"]:
             pos["stop_level"] = max(pos["stop_level"], pos["peak"] - OM_TRAIL_PTS)
+        self._update_live_state(pos["row_id"], pos["stop_level"], pos["peak"], float(bar["close"]))
 
     def _close_om_position(self, exit_price, reason, exit_time):
         pos = self.om_position
@@ -346,7 +374,10 @@ class Best2LivePaperEngine:
         entry_price = float(premium_df["close"].iloc[local_i])
         lot = sc.lot_size_for_date(entry_time.date())
 
-        row_id = self._record_open("six_concepts", direction, side, entry_time, entry_price)
+        reason = (f"Six Concepts screen: RBI/GBI relaxed pattern signal fired {direction.lower()} "
+                  f"(range/gap breakout + trend-stage confirmation on the 2-min chart).")
+        row_id = self._record_open("six_concepts", direction, side, entry_time, entry_price,
+                                    sc.STOP_PTS, reason, lot)
         self.sc_position = {
             "row_id": row_id, "direction": direction, "side": side, "strike": strike,
             "entry_time": entry_time, "entry_price": entry_price, "lot": lot,
@@ -371,6 +402,7 @@ class Best2LivePaperEngine:
             pos["trailing_active"] = True
         if pos["trailing_active"]:
             pos["stop_level"] = max(pos["stop_level"], pos["peak"] - sc.TRAIL_PTS)
+        self._update_live_state(pos["row_id"], pos["stop_level"], pos["peak"], float(bar["close"]))
         if bar["low"] <= pos["stop_level"]:
             reason = "TRAIL" if pos["trailing_active"] else "STOP"
             self._close_sc_position(pos["stop_level"], reason, bar_time)
