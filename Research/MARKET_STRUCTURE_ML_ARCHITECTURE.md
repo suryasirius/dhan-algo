@@ -1,6 +1,6 @@
 # Market Structure Engine + Real ML Project — Architecture (Draft for Review)
 
-Status: **design only, nothing built yet.** Per instruction, this is a draft to review, compare against other sources/ideas, and revise. Nothing here gets implemented until it's explicitly approved.
+Status: **Revised after external review.** Incorporates feedback that reordered the plan and added two concrete pieces (feature importance report, per-prediction explainability). Structure engine build is now in progress; ML remains gated on structure proving useful alone, per Section 7.
 
 This design is built directly on what's already been proven and disproven in this project — it doesn't start from a blank page.
 
@@ -62,7 +62,11 @@ A per-bar structured state (not a single "score" like DNA — several defined fi
  distance_to_nearest_swing_pct: float}
 ```
 
-### 2.4 Mandatory validation before this is trusted for anything
+### 2.4 Swing-length parameter — fixed, not swept
+
+N is set to a conventional value (5 bars each side) chosen before testing, not tuned by trying several values and keeping whichever looks best. Sweeping N until performance improves is the same curve-fitting mechanism that already produced a false positive with the DNA filter (which passed on 6 months and failed on 18). If N=5 doesn't show anything, that's a real result, not a reason to try N=7.
+
+### 2.5 Mandatory validation before this is trusted for anything
 
 Same standard already applied to DNA and OI: does trading *only when structure agrees with the trade's direction* actually improve open_momentum/six_concepts on a real backtest, tested on one window and then re-checked on a separate, later window it wasn't tuned on? If it fails that test the same way DNA did, it gets reported honestly as a failure too — this isn't guaranteed to work just because it's a different idea.
 
@@ -103,6 +107,14 @@ Start simple: logistic regression or a shallow decision tree first. Something yo
 ### 3.6 Fail-safe behavior
 
 If the model is unavailable, unsure, or hasn't been validated for the current market conditions, the system must fall back to the base strategy trading normally — never fail silently into "no trades" or an unvalidated guess. Mirrors the existing project-wide rule of never fabricating a number when live data isn't available.
+
+### 3.7 Feature Importance Report (added per external review)
+
+Generated after every training run, not just once: which features actually moved the model's predictions (Market Structure, DNA, ATR, OI, gap, time-of-day, etc.), ranked by contribution. This is what tells you honestly whether Structure or OI or anything else is pulling weight, instead of assuming. Cheap to produce from a simple model (logistic regression coefficients, or a shallow tree's built-in importances) — another reason to keep the model simple.
+
+### 3.8 Per-prediction explainability (added per external review)
+
+Every prediction should be able to state which inputs drove it, e.g. "Trade: yes — uptrend structure, DNA momentum positive, ATR normal, small gap, similar historical setups won 74% of the time" — not just a bare confidence number. This stays honest and cheap as long as the model stays simple (Section 3.4); it gets harder to trust the moment the model gets more complex, which is one more reason not to escalate past logistic regression/shallow trees without a clear justification.
 
 ---
 
@@ -150,3 +162,14 @@ Nothing in this layering touches `step9_live_engine.py`, `step10_live_paper_best
 - No new entry strategies — this only re-scores signals from the two you already trust.
 - No liquidity-sweep / advanced smart-money-concepts layers yet — flagged as a possible phase 2, not needed to get a first honest test running.
 - No live option-chain-based ML features yet — those can only be collected prospectively (no historical option-chain data exists to backtest with), so they're a future addition once enough live history accumulates, not part of the first build.
+
+## 7. Revised roadmap (per external review — structure-first gate)
+
+The original draft presented Structure and ML as one architecture. The stronger sequencing: treat them as two separate, honest decisions, with ML strictly gated on the first one succeeding. ML can only re-weight signal that already exists — if Structure alone shows nothing, no amount of meta-labeling manufactures an edge from noise.
+
+1. Build the Market Structure Engine (Section 2) — swing points (fixed N, not swept), trend structure, BOS/CHoCH, key levels.
+2. **Gate check:** does Structure *alone*, used the same simple way DNA/OI were tested (trade only when structure agrees with direction), improve open_momentum/six_concepts on real data?
+   - If **no** — stop here, report it honestly, do not build the ML layer. Matches how DNA and OI were reported when they failed.
+   - If **yes** — re-check on a separate, later out-of-sample window before trusting it (same discipline that caught the DNA filter's false positive).
+3. Only if Structure passes both checks: build the meta-labeling ML layer (Section 3) on top of it, with walk-forward validation, one true holdout, feature importance report, and per-prediction explainability.
+4. Paper trade the validated result (same isolated-DB pattern as `step10_live_paper_best2.py`) before ever considering live capital.
