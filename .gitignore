@@ -34,3 +34,6 @@ Thumbs.db
 
 # Editor lock files
 .~lock.*
+
+# scratch notes that may contain tokens
+Untitled*.txt
